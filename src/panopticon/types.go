@@ -11,3 +11,20 @@ type APIResponse struct {
 	Error    *APIError   `json:",omitEmpty"`
 	Artifact interface{} `json:",omitEmpty"`
 }
+
+// MediaKind describes the origination of a piece of media. That is, was it collected routinely by a
+// periodic uploader, was it synthesized from other media, was it proactively pinned by a user, etc.
+type MediaKind string
+
+// enum constants for MediaKind
+const (
+	MediaCollected MediaKind = "collected"
+	MediaMotion              = "motion"
+	MediaPinned              = "pinned"
+	MediaGenerated           = "generated"
+	MediaUnknown             = ""
+)
+
+// AllKinds is simply a list of all legitimate MediaKind values, intended for use in `range`
+// statements, etc.
+var AllKinds = []MediaKind{MediaCollected, MediaMotion, MediaPinned, MediaGenerated}

@@ -81,15 +81,15 @@ func ImageHandler(writer http.ResponseWriter, req *http.Request) {
 
 // MotionHandler handles /motion
 func MotionHandler(writer http.ResponseWriter, req *http.Request) {
-	processUpload(writer, req, PinMotion)
+	processUpload(writer, req, MediaMotion)
 }
 
 // LatestHandler handles /latest
 func LatestHandler(writer http.ResponseWriter, req *http.Request) {
-	processUpload(writer, req, PinNone)
+	processUpload(writer, req, MediaCollected)
 }
 
-func processUpload(writer http.ResponseWriter, req *http.Request, pinReason PinKind) {
+func processUpload(writer http.ResponseWriter, req *http.Request, kind MediaKind) {
 	TAG := "panopticon.processUpload"
 	badReq := httputil.NewJSONAssertable(writer, TAG, http.StatusBadRequest, appError)
 	ise := httputil.NewJSONAssertable(writer, TAG, http.StatusInternalServerError, internalError)
@@ -112,7 +112,7 @@ func processUpload(writer http.ResponseWriter, req *http.Request, pinReason PinK
 	err = jpeg.Encode(&buf, img, nil)
 	ise.Assert(err == nil, "error converting to JPEG (%s)", err)
 
-	handle := Repository.Store(camID, pinReason, buf.Bytes())
+	handle := Repository.Store(camID, kind, "jpg", buf.Bytes())
 	res := &struct{ Handle, Timestamp string }{handle.Handle, handle.PrettyTime()}
 
 	httputil.SendJSON(writer, http.StatusAccepted, &APIResponse{Artifact: res})

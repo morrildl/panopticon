@@ -57,11 +57,12 @@ func (sys *SystemConfig) initSchema() {
 	if rows, err := cxn.Query("select name from sqlite_master where type='table' and name='Version'"); err != nil {
 		panic(err)
 	} else {
-		rows.Close()
 		exists := rows.Next()
 		rows.Close()
 		if exists {
 			if rows, err := cxn.Query("select Version from Version"); err != nil {
+				panic(err)
+			} else {
 				if !rows.Next() {
 					panic("version table exists but has no row")
 				}
