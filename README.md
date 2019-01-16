@@ -37,11 +37,6 @@ Some code for managing cameras at home and dacha.
 * Users
   * Email
   * Name
-* Sites
-  * Name
-  * ID
-  * Lat
-  * Lon
 * Images
   * SHA256 (filename)
   * Timestamp

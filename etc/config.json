@@ -1,0 +1,43 @@
+{
+  "Debug": true,
+  "LogFile": "",
+  "Server": {
+    "Hostname": "panopticon.domain.tld",
+    "BindAddress": "",
+    "Port": 443,
+    "HTTPPort": 80,
+    "TLSCertPath": "./var/server.crt",
+    "TLSKeyPath": "./var/server.key",
+    "StaticPath": "./var/static",
+    "CameraAPISecret": {
+      "Header": "X-Panopticon-Camera-Secret",
+      "Value": "Sekr1tPassw0rd"
+    }
+  },
+  "System": {
+    "SqlitePath": "./var/panopticon.sqlite",
+    "HomeURL": "https://panopticon.domain.tld/",
+    "ServiceName": "Panopticon",
+    "SessionCookieID": "X-Panopticon-Session",
+    "CameraIDHeader": "X-Panopticon-Camera-ID",
+    "RetentionPeriod": "14d",
+    "PollInterval": 5
+  },
+  "Repository": {
+    "BaseDirectory": "./var/images"
+  },
+  "Session": {
+    "SessionCookieID": "X-Panopticon-Session",
+    "OAuth": {
+      "Issuer": "accounts.google.com",
+      "ClientID": "{{ oauth_client_id }}",
+      "ClientSecret": "{{ oauth_client_secret }}",
+      "RedirectURL": "{{ oauth_redirect_prefix }}/oauth",
+      "RedirectPath": "/oauth",
+      "Scopes": ["openid", "email"],
+      "AuthURL": "https://accounts.google.com/o/oauth2/auth",
+      "TokenExchangeURL": "https://www.googleapis.com/oauth2/v3/token",
+      "JWTPubKeyURL": "https://www.googleapis.com/oauth2/v1/certs"
+    }
+  }
+}

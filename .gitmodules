@@ -22,3 +22,6 @@
 [submodule "src/vendor/golang.org/x/net"]
 	path = src/vendor/golang.org/x/net
 	url = https://go.googlesource.com/net
+[submodule "src/vendor/github.com/boombuler/barcode"]
+	path = src/vendor/github.com/boombuler/barcode
+	url = https://github.com/boombuler/barcode
