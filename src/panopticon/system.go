@@ -183,7 +183,7 @@ func (sys *SystemConfig) Cameras() []*Camera {
 	cxn := sys.getDB()
 	defer cxn.Close()
 
-	if rows, err := cxn.Query("select Name, ID, Address, Diurnal, Timelapse, ImageURL, RTSPPURL from Cameras"); err != nil {
+	if rows, err := cxn.Query("select Name, ID, Address, Diurnal, Timelapse, ImageURL, RTSPURL from Cameras"); err != nil {
 		panic(err)
 	} else {
 		defer rows.Close()

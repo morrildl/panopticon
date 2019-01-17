@@ -16,7 +16,7 @@ var schemaStatements = [][]string{
 		"create trigger s_u_ts after update on Settings begin update version set Updated=strftime('%Y-%m-%dT%H:%M:%f', 'now') where rowid=NEW.rowid; end",
 		"create trigger s_i_ts after insert on Settings begin update version set Updated=strftime('%Y-%m-%dT%H:%M:%f', 'now') where rowid=NEW.rowid; end",
 
-		"create table Cameras (Name text not null, ID text not null unique, Address text not null, Diurnal int default 0, Timelapse text not null default 'none', ImageURL text not null, RSTPURL text not null default '', Updated datetime default current_timestamp)",
+		"create table Cameras (Name text not null, ID text not null unique, Address text not null, Diurnal int default 0, Timelapse text not null default 'none', ImageURL text not null, RTSPURL text not null default '', Updated datetime default current_timestamp)",
 		"create trigger c_u_ts after update on Cameras begin update version set Updated=strftime('%Y-%m-%dT%H:%M:%f', 'now') where rowid=NEW.rowid; end",
 		"create trigger c_i_ts after insert on Cameras begin update version set Updated=strftime('%Y-%m-%dT%H:%M:%f', 'now') where rowid=NEW.rowid; end",
 

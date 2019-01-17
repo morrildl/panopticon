@@ -28,7 +28,9 @@ func ProvisionHandler(writer http.ResponseWriter, req *http.Request) {
 
 // StateHandler handles /state
 func StateHandler(writer http.ResponseWriter, req *http.Request) {
-	res := &messages.State{}
+	res := &messages.State{
+		ServiceName: System.ServiceName,
+	}
 
 	// no camera specified, load them all
 	cameras := System.Cameras()

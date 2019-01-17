@@ -13,6 +13,18 @@ type RepositoryConfig struct {
 	BaseDirectory string
 }
 
+// Ready prepares the RepositoryConfig for use.
+func (repo *RepositoryConfig) Ready() {
+	if repo.BaseDirectory == "" {
+		panic("empty BaseDirectory")
+	}
+	var err error
+	repo.BaseDirectory, err = filepath.Abs(repo.BaseDirectory)
+	if err != nil {
+		panic(err)
+	}
+}
+
 // Store updates the latest image for the given source (camera.) The provided image data will be
 // stored to disk, and will replace the previous in-RAM copy as latest from that source. The
 // `handle` returned can be used to refer to the image later, e.g. for lookups.

@@ -1,0 +1,210 @@
+<!doctype html>
+<html>
+<!--
+  Copyright © 2018 Playground Global, LLC
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<head>
+<base href="/"/>
+<meta charset="UTF-8"/>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+
+<link rel="icon" href="/favicon.ico?v=1234"/>
+
+<!-- pin down the viewport, since we're a single-page app -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- prettify the UI w/ Roboto for typography, bulma.io for L&F, and Font Awesome for... icons -->
+<link href='https://fonts.googleapis.com/css?family=Roboto' rel='stylesheet' type='text/css'/>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.7.0/css/bulma.min.css" rel="stylesheet" type="text/css"/>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet" type="text/css"/>
+<link href="/static/panopticon.css" rel="stylesheet" type="text/css"/>
+
+<!-- Axios for XHR, Vue for UI -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.17.1/axios.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/vue/2.5.16/vue.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/vue-router/3.0.1/vue-router.js" defer></script>
+
+
+<!-- minified CDN scripts, for production -->
+<!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.17.1/axios.min.js" defer></script> -->
+<!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/2.5.3/vue.min.js" defer></script> -->
+<!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/vue-router/3.0.1/vue-router.min.js" defer></script> -->
+
+<script src="/static/panopticon.js" defer></script>
+
+<title></title>
+</head><body>
+
+<!-- component template definitions -->
+<div style="display: none;">
+
+  <!-- overlay indicating action in progress -->
+  <div id="waiting-modal">
+    <div class="modal" :class="{'is-active': waiting}">
+      <div class="modal-background"></div>
+      <div class="modal-content">
+          <div class="box">{{ displayMessage }}</div>
+      </div>
+    </div>
+  </div>
+  <!-- end overlay indicating action in progress -->
+
+  <!-- overlay indicating an error occurred -->
+  <div id="error-modal">
+    <div class="modal" :class="{'is-active': visible}">
+      <div class="modal-background"></div>
+      <div class="modal-content">
+        <div class="notification" :class="{'is-danger': !error.Recoverable, 'is-info': error.Recoverable}">
+          <section class="content">{{ error.message }}</section>
+          <section class="content" v-if="visible">{{ error.extra }}</section>
+          <button v-if="error.recoverable" @click="clear()" class="button is-primary">Dismiss</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- end overlay indicating action in progress -->
+
+  <!-- navbar -->
+  <div id="navbar">
+    <nav class="navbar" role="navigation">
+      <waiting-modal :waiting="waiting"></waiting-modal>
+      <error-modal :error="error" :clear="clearError"></error-modal>
+      <div class="navbar-brand" style="text-transform: uppercase; font-size: 125%;">
+        <router-link class="navbar-item" :to="globals.DefaultPath"><img class="logo" src="/static/icon-192.png" style="padding-right: 1em;"/>{{globals.ServiceName}}</router-link>
+      </div>
+      <div class="navbar-menu is-active">
+        <div class="navbar-start">
+          <div class="navbar-item">
+            <div class="dropdown is-hoverable is-small">
+              <div class="dropdown-trigger is-small">
+                <button class="button is-small" aria-haspopup="true" aria-controls="dropdown-menu">
+                  <span>{{ globals.CurrentCameraName }}</span>
+                  <span class="icon is-small">
+                    <i class="fa fa-angle-down" aria-hidden="true"></i>
+                  </span>
+                </button>
+              </div>
+              <div class="dropdown-menu is-small" id="dropdown-menu" role="menu">
+                <div class="dropdown-content is-small">
+                  <a v-for="c in globals.Cameras" class="dropdown-item is-small" :class="{'is-active': $route.params.camera == c.ID}" @click="changeCamera(c.ID)">{{ c.Name }}</a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="navbar-end">
+          <div class="navbar-item"><div class="tabs is-toggle">
+            <router-link tag="li" class="is-tab" :class="{'is-active': $route.path == '/settings'}" to="/settings"><a>Settings</a></router-link>
+          </div></div>
+        </div>
+      </div>
+    </nav>
+  </div>
+  <!-- end navbar -->
+
+  <!-- admin form to edit system settings -->
+  <div id="settings">
+    <div class="columns">
+      <waiting-modal :waiting="xhrPending"></waiting-modal>
+      <error-modal :error="error" :clear="clearError"></error-modal>
+      <div class="column is-8-desktop is-offset-2-desktop is-10-mobile is-offset-1-mobile is-8-tablet is-offset-2-tablet">
+        <div class="columns"><!-- non-mobile columns here, so that user list stacks below settings on phones -->
+          <div class="column is-6">
+            <h1>{{globals.ServiceName}} Settings</h1>
+            <div class="field">
+              <div class="label">Name of this VPN service</div>
+              <div class="control has-icons-left">
+                <input class="input" type="text" placeholder="Panopticon" v-model="serviceName"></input>
+                <span class="icon is-small is-left"><i class="fa fa-tag"></i></span>
+              </div>
+              <p class="help">This is the name users will see in the app.</p>
+            </div>
+
+            <div class="field">
+              <div class="label">Maximum devices per user</div>
+              <div class="control has-icons-left">
+                <input class="input" type="text" placeholder="2" v-model="clientLimit"></input>
+                <span class="icon is-small is-left"><i class="fa fa-clone"></i></span>
+              </div>
+              <p class="help">Users will be able to connect up to this many devices.</p>
+            </div>
+
+            <div class="field">
+              <div class="label">Refresh period</div>
+              <div class="control has-icons-left">
+                <input class="input" type="text" placeholder="90" v-model="clientCertDuration"></input>
+                <span class="icon is-small is-left"><i class="fa fa-calendar"></i></span>
+              </div>
+              <p class="help">This sets the validity period of certificates, in days.</p>
+            </div>
+
+            <div class="field">
+              <div class="label">Approved domains</div>
+              <div class="control">
+                <textarea class="textarea" v-model="whitelistedDomains" placeholder="playground.global
+sententio.us"></textarea>
+              </div>
+              <p class="help">Users with Google accounts in one of these domains will be able to set up
+              access with no action on your part.</p>
+            </div>
+
+            <div class="field is-grouped">
+              <div class="control">
+                <button class="button" @click="cancel()">Cancel</button>
+              </div>
+              <div class="control">
+                <button class="button is-link" @click="submit()">Submit</button>
+              </div>
+            </div>
+          </div>
+          <div class="column is-6">
+          </div>
+        </div><!-- end non-mobile columns -->
+      </div>
+    </div>
+  </div>
+  <!-- end admin form to edit system settings -->
+
+  <!-- state fetcher -->
+  <div id="state-fetcher"><div style="display: none;"></div></div>
+  <!-- end state fetcher -->
+
+  <!-- main camera view -->
+  <div id="camera">
+    <div class="container">
+      <h1>{{ globals.CurrentCameraName }}</h1>
+      <figure class="image is-16by9"><img src="/static/no-image.png"></img></figure>
+    </div>
+  </div>
+  <!-- end main camera view -->
+
+  <!-- no cameras error view -->
+  <div id="no-cameras">
+    <div class="container">
+      <h2>There are no cameras configured.</h2>
+    </div>
+  </div>
+  <!-- end no cameras error view -->
+
+</div><!-- end templates definition (i.e. end 'display: none;' block) -->
+
+<div id="panopticon-root">
+  <state-fetcher></state-fetcher>
+  <navbar></navbar>
+  <router-view></router-view>
+</div>
+
+</body>
+</html>

@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+
 	"panopticon"
 
 	"playground/config"
@@ -54,10 +56,12 @@ func initConfig() {
 		log.SetLogLevel(log.LEVEL_DEBUG)
 	}
 	cfg.System.Ready()
+	cfg.Repository.Ready()
 }
 
 func emailInspector(email string) bool {
 	user := panopticon.System.GetUser(email)
+	log.Debug("emailInspector", fmt.Sprintf("'%s' is authorized: %t", email, user != nil))
 	return user != nil
 }
 
@@ -78,10 +82,10 @@ func main() {
 	// web UI static assets
 	content := static.Content{Path: cfg.Server.StaticPath, Prefix: "/static/", DisablePreloading: cfg.Debug}
 	content.Preload(cfg.Server.PreloadList...)
+	mux.HandleFunc("/", content.RootHandler) // must be unprotected as it starts the login flow
 	w = httputil.Wrapper().WithPanicHandler().WithSessionSentry(panopticon.AuthError).WithAuthCallback(panopticon.AuthError, emailInspector)
-	mux.HandleFunc("/", w.WithMethodSentry("GET").Wrap(content.RootHandler))
 	mux.HandleFunc("/favicon.ico", w.WithMethodSentry("GET").Wrap(content.FaviconHandler))
-	mux.HandleFunc("/static", w.WithMethodSentry("GET").Wrap(content.Handler))
+	mux.HandleFunc("/static/", w.WithMethodSentry("GET").Wrap(content.Handler))
 
 	// API endpoints for client UI
 	mux.HandleFunc("/client/state", w.WithMethodSentry("GET").Wrap(panopticon.StateHandler))

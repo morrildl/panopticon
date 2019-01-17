@@ -11,5 +11,6 @@ type Camera struct {
 }
 
 type State struct {
-	Cameras []*Camera
+	Cameras     []*Camera
+	ServiceName string
 }
