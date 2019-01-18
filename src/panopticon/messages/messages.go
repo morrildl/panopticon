@@ -3,6 +3,7 @@ package messages
 type Camera struct {
 	Name           string
 	ID             string
+	AspectRatio    string
 	LocalTime      string
 	LocalDate      string
 	Message        string

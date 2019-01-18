@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"playground/log"
 )
 
 // RepositoryConfig contains photos. Essentially it owns and oversees the directory where photos are stored.
@@ -45,6 +47,7 @@ func (repo *RepositoryConfig) Latest(source string) *Image {
 		if err != nil {
 			panic(err)
 		}
+		defer f.Close()
 		entries, err := f.Readdir(0)
 		if err != nil {
 			panic(err)
@@ -73,11 +76,12 @@ func (repo *RepositoryConfig) Latest(source string) *Image {
 	}
 
 	latest = repo.canonFile(latest)
-	dir, file := filepath.Split(latest)
-	dir, pin := filepath.Split(dir)
-	dir, camID := filepath.Split(dir)
+	chunks := strings.Split(latest, string(os.PathSeparator))
+	file := chunks[len(chunks)-1]
+	pin := chunks[len(chunks)-2]
+	camID := chunks[len(chunks)-3]
 	if camID != source {
-		panic(fmt.Errorf("camera ID does not match source ('%s' vs. '%s')", camID, source))
+		panic(fmt.Errorf("camera ID from '%s' does not match source ('%s' vs. '%s')", latest, camID, source))
 	}
 
 	return &Image{
@@ -100,6 +104,7 @@ func (repo *RepositoryConfig) Locate(handle string) *Image {
 			if err != nil {
 				panic(err)
 			}
+			defer f.Close()
 			entries, err := f.Readdir(0)
 			if err != nil {
 				panic(err)
@@ -137,6 +142,7 @@ func (repo *RepositoryConfig) List(source string) []*Image {
 		if err != nil {
 			panic(err)
 		}
+		defer f.Close()
 		entries, err := f.Readdir(0)
 		if err != nil {
 			panic(err)
@@ -161,17 +167,19 @@ func (repo *RepositoryConfig) List(source string) []*Image {
 // window of images.
 func (repo *RepositoryConfig) PurgeBefore(kind MediaKind, then time.Time) {
 	for _, camera := range System.Cameras() {
-		dir := repo.canonDir(filepath.Join(repo.BaseDirectory, camera.ID, string(kind)))
+		dir := repo.dirFor(camera.ID, kind)
 		f, err := os.Open(dir)
 		if err != nil {
 			panic(err)
 		}
+		defer f.Close()
 		entries, err := f.Readdir(0)
 		if err != nil {
 			panic(err)
 		}
 		for _, entry := range entries {
 			if entry.IsDir() {
+				log.Warn("RepositoryConfig.PurgeBefore", fmt.Sprintf("encountered dir '%s' where it shouldn't be", dir))
 				continue
 			}
 			if entry.ModTime().Before(then) {
@@ -196,10 +204,13 @@ func (repo *RepositoryConfig) PurgeBefore(kind MediaKind, then time.Time) {
  *
  * Motion images are pushed in response to camera-side motion detection. They are purged every 24 hours.
  *
- * Generated media -- basically timelapses -- are constructed daily from the union of collected
- * and motion images. They are purged after 14 days.
+ * Generated media -- basically timelapses -- are constructed daily per some schedule. Only photos
+ * from collected and motion sets are eligible to be used to generate images. Generated images are
+ * purged after 14 days.
  *
- * Pinned means a user flagged it for preservation. They are never purged. You can pin any of the other types.
+ * Pinned means a user flagged it for preservation. They are never purged. You can pin any of the
+ * other types. A pin is a copy operation, resulting in a new image with new handle and new copy on
+ * disk (though timestamps are preserved.)
  */
 
 func (repo *RepositoryConfig) segmentToMediaKind(segment string) MediaKind {
@@ -225,33 +236,63 @@ func (repo *RepositoryConfig) canonDir(dirPath string) string {
 	}
 	stat, err := os.Stat(abs)
 	if err != nil {
+		if os.IsNotExist(err) { // it's okay if it doesn't exist...
+			return abs
+		}
 		panic(err)
 	}
-	if !stat.IsDir() {
+	if !stat.IsDir() { // ...but if it DOES exist, it must be a directory
 		panic(fmt.Errorf("'%s' is not a directory", dirPath))
 	}
 	return abs
 }
 
 func (repo *RepositoryConfig) canonFile(file string) string {
+	dir, _ := filepath.Split(file)
+	absDir := repo.canonDir(dir)
+
 	abs, err := filepath.Abs(file)
 	if err != nil {
 		panic(err)
 	}
-	if !strings.HasPrefix(abs, repo.BaseDirectory) {
+	if !strings.HasPrefix(abs, absDir) { // note that absDir is already guaranteed beneath BaseDirectory
 		panic(fmt.Errorf("'%s' is not beneath BaseDirectory (%s)", file, repo.BaseDirectory))
 	}
 	stat, err := os.Stat(abs)
 	if err != nil {
+		if os.IsNotExist(err) { // it's okay if it doesn't exist...
+			return abs
+		}
 		panic(err)
 	}
-	if stat.IsDir() {
+	if stat.IsDir() { // ...but if it DOES exist, it must NOT be a directory
 		panic(fmt.Errorf("'%s' is a directory", file))
 	}
 	return abs
 }
 
+func (repo *RepositoryConfig) assertDir(dir string) {
+	dir = repo.canonDir(dir)
+	_, err := os.Stat(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			if err := os.MkdirAll(dir, 0770); err != nil {
+				panic(err)
+			}
+		} else {
+			panic(err)
+		}
+	}
+}
+
 func (repo *RepositoryConfig) dirFor(camID string, kind MediaKind) string {
-	fullPath := filepath.Join(repo.BaseDirectory, camID, string(kind))
-	return repo.canonDir(fullPath)
+	// verify the camera's base directory exists; create if necessary
+	p := filepath.Join(repo.BaseDirectory, camID)
+	repo.assertDir(p)
+
+	// verify that the specific kind subdir exists; create if necessary
+	p = filepath.Join(p, string(kind))
+	repo.assertDir(p)
+
+	return p
 }

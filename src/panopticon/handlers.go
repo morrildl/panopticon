@@ -93,7 +93,7 @@ func LatestHandler(writer http.ResponseWriter, req *http.Request) {
 
 func processUpload(writer http.ResponseWriter, req *http.Request, kind MediaKind) {
 	TAG := "panopticon.processUpload"
-	badReq := httputil.NewJSONAssertable(writer, TAG, http.StatusBadRequest, appError)
+	badReq := httputil.NewJSONAssertable(writer, TAG, http.StatusBadRequest, clientError)
 	ise := httputil.NewJSONAssertable(writer, TAG, http.StatusInternalServerError, internalError)
 	notFound := httputil.NewJSONAssertable(writer, TAG, http.StatusNotFound, noSuchCamera)
 	camID := req.Header.Get(System.CameraIDHeader)

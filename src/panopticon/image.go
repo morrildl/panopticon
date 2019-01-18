@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"playground/log"
 )
 
 // Image represents an image file stored on disk.
@@ -27,15 +29,28 @@ type Image struct {
 // CreateImage stores the bytes to the disk according to config & convention, and returns a handle to the
 // resulting image.
 func CreateImage(source string, kind MediaKind, ext string, b []byte) *Image {
-	timestamp := time.Now()
-	tb, _ := timestamp.MarshalBinary()
 	dir := Repository.dirFor(source, kind)
+
+	// compute a hash of the file based on its contents, disk location, and current time
+	timestamp := time.Now()
+	tb, err := timestamp.MarshalBinary()
 	potato := sha256.New()
 	potato.Write(b)
 	potato.Write(tb)
-	handle := hex.EncodeToString(potato.Sum([]byte(dir)))
+	potato.Write([]byte(dir))
+	handle := hex.EncodeToString(potato.Sum(nil)[:32])
 
+	// verify that the file doesn't somehow already exist
 	diskPath := Repository.canonFile(filepath.Join(dir, fmt.Sprintf("%s.%s", handle, ext)))
+	_, err = os.Stat(diskPath)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			log.Error("Image.CreateImage", "file hash collision?! '%s'", handle)
+			panic(err)
+		}
+	}
+
+	// write the actual file contents under its computed name
 	if err := ioutil.WriteFile(diskPath, b, 0660); err != nil {
 		panic(err)
 	}
@@ -84,7 +99,9 @@ func (img *Image) Erase() {
 		panic(fmt.Errorf("image diskPath does not resolve to itself '%s'/'%s'", diskPath, img.diskPath))
 	}
 	if err := os.Remove(img.diskPath); err != nil {
-		panic(err)
+		if !os.IsNotExist(err) { // ignore if we were just asked to remove a thing which isn't there
+			panic(err)
+		}
 	}
 }
 

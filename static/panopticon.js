@@ -28,7 +28,9 @@ const globals = {
   Cameras: [],
   ServiceName: "Panopticon",
   DefaultPath: "",
-  CurrentCameraName: "No camera",
+  CurrentCamera: {
+    Name: "No camera",
+  },
 };
 
 const generalError = { Message: "An error occurred in this app.", Extra: "Please reload this page.", Recoverable: false };
@@ -225,10 +227,10 @@ const events = Vue.component('state-fetcher', {
           }
         }
 
-        globals.CurrentCameraName = "No camera";
+        globals.CurrentCamera = { Name: "No camera" };
         for (let c of globals.Cameras) {
           if (c.ID == this.$route.params.camera) {
-            globals.CurrentCameraName = c.Name;
+            globals.CurrentCamera = c;
           }
         }
       }, this.setError);

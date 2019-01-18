@@ -90,7 +90,7 @@
             <div class="dropdown is-hoverable is-small">
               <div class="dropdown-trigger is-small">
                 <button class="button is-small" aria-haspopup="true" aria-controls="dropdown-menu">
-                  <span>{{ globals.CurrentCameraName }}</span>
+                  <span>{{ globals.CurrentCamera.Name }}</span>
                   <span class="icon is-small">
                     <i class="fa fa-angle-down" aria-hidden="true"></i>
                   </span>
@@ -184,8 +184,8 @@ sententio.us"></textarea>
   <!-- main camera view -->
   <div id="camera">
     <div class="container">
-      <h1>{{ globals.CurrentCameraName }}</h1>
-      <figure class="image is-16by9"><img src="/static/no-image.png"></img></figure>
+      <h1>{{ globals.CurrentCamera.Name }}</h1>
+      <figure class="image is-16by9"><img :src="globals.CurrentCamera.LatestImageURL"></img></figure>
     </div>
   </div>
   <!-- end main camera view -->

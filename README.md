@@ -2,6 +2,10 @@
 
 Some code for managing cameras at home and dacha.
 
+# Notes
+
+[Wyze camera alt firmware project](https://github.com/EliasKotlyar/Xiaomi-Dafang-Hacks/tree/master/firmware_mod/scripts)
+
 # Features
 
 ## Authentication via Google-OAuth2

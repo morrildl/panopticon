@@ -28,13 +28,14 @@ const (
 // about that camera, such as whether it's daylight-only, whether timelapses should be generated for
 // it, etc.
 type Camera struct {
-	Name      string
-	ID        string
-	Address   string
-	Diurnal   bool
-	Timelapse TimelapseKind
-	StillURL  string
-	RTSPURL   string
+	Name        string
+	ID          string
+	AspectRatio string
+	Address     string
+	Diurnal     bool
+	Timelapse   TimelapseKind
+	StillURL    string
+	RTSPURL     string
 }
 
 // Store records a new Camera to the database, or updates it if it already exists.
@@ -43,10 +44,10 @@ func (c *Camera) Store() {
 	defer cxn.Close()
 
 	q := `insert into Cameras 
-						(ID, Name, Address, Diurnal, Timelapse, ImageURL, RTSPURL) 
+						(ID, Name, AspectRatio, Address, Diurnal, Timelapse, ImageURL, RTSPURL) 
 						values (?, ?, ?, ?, ?, ?, ?)
 						on conflict(ID) do update set
-							Name=excluded.Name, Address=excluded.Address, Diurnal=excluded.Diurnal, 
+							Name=excluded.Name, AspectRatio=excluded.AspectRatio, Address=excluded.Address, Diurnal=excluded.Diurnal, 
 							Timelapse=excluded.Timelapse, ImageURL=excluded.ImageURL, RTSPURL=excluded.RTSPURL`
 	diurnal := 0
 	if c.Diurnal {
@@ -183,7 +184,7 @@ func (sys *SystemConfig) Cameras() []*Camera {
 	cxn := sys.getDB()
 	defer cxn.Close()
 
-	if rows, err := cxn.Query("select Name, ID, Address, Diurnal, Timelapse, ImageURL, RTSPURL from Cameras"); err != nil {
+	if rows, err := cxn.Query("select Name, ID, AspectRatio, Address, Diurnal, Timelapse, ImageURL, RTSPURL from Cameras"); err != nil {
 		panic(err)
 	} else {
 		defer rows.Close()
@@ -191,7 +192,7 @@ func (sys *SystemConfig) Cameras() []*Camera {
 		ret := []*Camera{}
 		for rows.Next() {
 			c := &Camera{}
-			rows.Scan(&c.Name, &c.ID, &c.Address, &c.Diurnal, &c.Timelapse, &c.StillURL, &c.RTSPURL)
+			rows.Scan(&c.Name, &c.ID, &c.AspectRatio, &c.Address, &c.Diurnal, &c.Timelapse, &c.StillURL, &c.RTSPURL)
 			if c.Name == "" || c.ID == "" {
 				panic(fmt.Errorf("camera entry stored with null fields '%s'/'%s'", c.ID, c.Name))
 			}
@@ -235,10 +236,10 @@ func (sys *SystemConfig) GetCamera(ID string) *Camera {
 	cxn := sys.getDB()
 	defer cxn.Close()
 
-	row := cxn.QueryRow("select Name, ID, Address, Diurnal, Timelapse, ImageURL, RTSTPURL from Cameras where ID=?", ID)
+	row := cxn.QueryRow("select Name, ID, AspectRatio, Address, Diurnal, Timelapse, ImageURL, RTSPURL from Cameras where ID=?", ID)
 
 	c := &Camera{}
-	err := row.Scan(&c.Name, &c.ID, &c.Address, &c.Diurnal, &c.Timelapse, &c.StillURL, &c.RTSPURL)
+	err := row.Scan(&c.Name, &c.ID, &c.AspectRatio, &c.Address, &c.Diurnal, &c.Timelapse, &c.StillURL, &c.RTSPURL)
 	if err == sql.ErrNoRows {
 		return nil
 	}
