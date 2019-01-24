@@ -2,6 +2,7 @@ package panopticon
 
 import (
 	"database/sql"
+
 	_ "github.com/mattn/go-sqlite3" // register sqlite3 driver
 )
 
@@ -28,6 +29,11 @@ var schemaStatements = [][]string{
 	},
 	[]string{
 		"update Version set Version=2",
+	},
+	[]string{
+		"alter table Cameras add Latitude real not null default 0.0",
+		"alter table Cameras add Longitude real not null default 0.0",
+		"update Version set Version=3",
 	},
 }
 

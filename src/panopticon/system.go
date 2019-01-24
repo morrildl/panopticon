@@ -17,13 +17,6 @@ import (
 // of images.
 type TimelapseKind string
 
-// constant values for TimelapseKind
-const (
-	TimelapseNone     TimelapseKind = ""
-	TimelapseMotion                 = "motion"
-	TimelapseDaylight               = "daylight"
-)
-
 // Camera represents a device permitted to upload images to this service. It also stores metadata
 // about that camera, such as whether it's daylight-only, whether timelapses should be generated for
 // it, etc.
@@ -33,9 +26,11 @@ type Camera struct {
 	AspectRatio string
 	Address     string
 	Diurnal     bool
-	Timelapse   TimelapseKind
+	Timelapse   MediaKind
 	StillURL    string
 	RTSPURL     string
+	Latitude    float64
+	Longitude   float64
 }
 
 // Store records a new Camera to the database, or updates it if it already exists.
@@ -44,11 +39,11 @@ func (c *Camera) Store() {
 	defer cxn.Close()
 
 	q := `insert into Cameras 
-						(ID, Name, AspectRatio, Address, Diurnal, Timelapse, ImageURL, RTSPURL) 
-						values (?, ?, ?, ?, ?, ?, ?)
+						(ID, Name, AspectRatio, Address, Diurnal, Latitude, Longitude, Timelapse, ImageURL, RTSPURL) 
+						values (?, ?, ?, ?, ?, ?, ?, ?, ?)
 						on conflict(ID) do update set
 							Name=excluded.Name, AspectRatio=excluded.AspectRatio, Address=excluded.Address, Diurnal=excluded.Diurnal, 
-							Timelapse=excluded.Timelapse, ImageURL=excluded.ImageURL, RTSPURL=excluded.RTSPURL`
+							Latitude=excluded.Latitude, Longitude=excluded.Longitude, Timelapse=excluded.Timelapse, ImageURL=excluded.ImageURL, RTSPURL=excluded.RTSPURL`
 	diurnal := 0
 	if c.Diurnal {
 		diurnal = 1
@@ -103,7 +98,6 @@ type SystemConfig struct {
 	ServiceName     string
 	SessionCookieID string
 	CameraIDHeader  string
-	RetentionPeriod string
 	PollInterval    int
 	SqlitePath      string
 }
@@ -134,7 +128,6 @@ func (sys *SystemConfig) Ready() {
 				"ServiceName":     &sys.ServiceName,
 				"SessionCookieID": &sys.SessionCookieID,
 				"CameraIDHeader":  &sys.CameraIDHeader,
-				"RetentionPeriod": &sys.RetentionPeriod,
 				// specifically exclude SqlitePath here
 			}[k]
 			if ok {
@@ -184,7 +177,7 @@ func (sys *SystemConfig) Cameras() []*Camera {
 	cxn := sys.getDB()
 	defer cxn.Close()
 
-	if rows, err := cxn.Query("select Name, ID, AspectRatio, Address, Diurnal, Timelapse, ImageURL, RTSPURL from Cameras"); err != nil {
+	if rows, err := cxn.Query("select Name, ID, AspectRatio, Address, Diurnal, Latitude, Longitude, Timelapse, ImageURL, RTSPURL from Cameras"); err != nil {
 		panic(err)
 	} else {
 		defer rows.Close()
@@ -192,7 +185,7 @@ func (sys *SystemConfig) Cameras() []*Camera {
 		ret := []*Camera{}
 		for rows.Next() {
 			c := &Camera{}
-			rows.Scan(&c.Name, &c.ID, &c.AspectRatio, &c.Address, &c.Diurnal, &c.Timelapse, &c.StillURL, &c.RTSPURL)
+			rows.Scan(&c.Name, &c.ID, &c.AspectRatio, &c.Address, &c.Diurnal, &c.Latitude, &c.Longitude, &c.Timelapse, &c.StillURL, &c.RTSPURL)
 			if c.Name == "" || c.ID == "" {
 				panic(fmt.Errorf("camera entry stored with null fields '%s'/'%s'", c.ID, c.Name))
 			}
@@ -236,10 +229,10 @@ func (sys *SystemConfig) GetCamera(ID string) *Camera {
 	cxn := sys.getDB()
 	defer cxn.Close()
 
-	row := cxn.QueryRow("select Name, ID, AspectRatio, Address, Diurnal, Timelapse, ImageURL, RTSPURL from Cameras where ID=?", ID)
+	row := cxn.QueryRow("select Name, ID, AspectRatio, Address, Diurnal, Latitude, Longitude, Timelapse, ImageURL, RTSPURL from Cameras where ID=?", ID)
 
 	c := &Camera{}
-	err := row.Scan(&c.Name, &c.ID, &c.AspectRatio, &c.Address, &c.Diurnal, &c.Timelapse, &c.StillURL, &c.RTSPURL)
+	err := row.Scan(&c.Name, &c.ID, &c.AspectRatio, &c.Address, &c.Diurnal, &c.Latitude, &c.Longitude, &c.Timelapse, &c.StillURL, &c.RTSPURL)
 	if err == sql.ErrNoRows {
 		return nil
 	}

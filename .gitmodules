@@ -25,3 +25,6 @@
 [submodule "src/vendor/github.com/boombuler/barcode"]
 	path = src/vendor/github.com/boombuler/barcode
 	url = https://github.com/boombuler/barcode
+[submodule "src/vendor/github.com/nathan-osman/go-sunrise"]
+	path = src/vendor/github.com/nathan-osman/go-sunrise
+	url = https://github.com/nathan-osman/go-sunrise

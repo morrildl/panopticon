@@ -20,11 +20,11 @@
     "ServiceName": "Panopticon",
     "SessionCookieID": "X-Panopticon-Session",
     "CameraIDHeader": "X-Panopticon-Camera-ID",
-    "RetentionPeriod": "14d",
     "PollInterval": 5
   },
   "Repository": {
-    "BaseDirectory": "./var/images"
+    "BaseDirectory": "./var/images",
+    "RetentionPeriod": "336h"
   },
   "Session": {
     "SessionCookieID": "X-Panopticon-Session",

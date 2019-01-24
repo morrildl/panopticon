@@ -1,6 +1,7 @@
 # ToDo
 
 * add an aspect ratio column to cameras; plumb into Bulma <figure> aspect
+* clean way to load repo config overloads from DB
 
 # Done
 

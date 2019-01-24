@@ -2,17 +2,29 @@ package panopticon
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
+	"os/exec"
+	"path"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
+	//sun "github.com/kelvins/sunrisesunset"
+	//"github.com/cpucycle/astrotime"
+
 	"playground/log"
+
+	sunrise "github.com/nathan-osman/go-sunrise"
 )
 
 // RepositoryConfig contains photos. Essentially it owns and oversees the directory where photos are stored.
 type RepositoryConfig struct {
-	BaseDirectory string
+	BaseDirectory   string
+	RetentionPeriod string
+	Latitude        string
+	Longitude       string
 }
 
 // Ready prepares the RepositoryConfig for use.
@@ -25,6 +37,12 @@ func (repo *RepositoryConfig) Ready() {
 	if err != nil {
 		panic(err)
 	}
+
+	repo.PurgeAt(4, 0, "24h", MediaCollected)
+	repo.PurgeAt(4, 15, "24h", MediaMotion)
+	repo.PurgeAt(4, 30, repo.RetentionPeriod, MediaGenerated)
+
+	repo.startTimelapser(0, 0)
 }
 
 // Store updates the latest image for the given source (camera.) The provided image data will be
@@ -41,8 +59,8 @@ func (repo *RepositoryConfig) Latest(source string) *Image {
 	var latestTime time.Time
 	var latestFI os.FileInfo
 
-	for _, pin := range []MediaKind{MediaCollected, MediaMotion} {
-		dir := repo.dirFor(source, pin)
+	for _, kind := range []MediaKind{MediaCollected, MediaMotion} {
+		dir := repo.dirFor(source, kind)
 		f, err := os.Open(dir)
 		if err != nil {
 			panic(err)
@@ -190,6 +208,179 @@ func (repo *RepositoryConfig) PurgeBefore(kind MediaKind, then time.Time) {
 			}
 		}
 	}
+}
+
+func scheduler(tag string, hour int, min int, job func()) {
+	now := time.Now().Local()
+
+	// compute how long we need to sleep for
+	goal := time.Date(now.Year(), now.Month(), now.Day(), hour, min, 0, 0, time.Local)
+	if goal.Before(now) {
+		// specified time already happened today, so advance to same time tomorrow
+		goal = goal.Add(24 * time.Hour)
+	}
+	delta := goal.Sub(now)
+
+	log.Debug(tag, fmt.Sprintf("sleeping for %s until %s", delta/time.Nanosecond, goal.Format(time.RFC3339)))
+	time.Sleep(delta)
+
+	log.Debug(tag, "running as configured")
+	job()
+
+}
+
+// PurgeAt configures a job to purge the indicated kindo of image according to
+// the indicated retention period to run each day at the indicated time.
+func (repo *RepositoryConfig) PurgeAt(hour int, min int, retention string, kind MediaKind) {
+	dur, err := time.ParseDuration(retention) // e.g. "14d", "24h"
+	if err != nil {
+		panic(err)
+	}
+
+	// a tiny function to encapsulate what we need to do when we reach our start time
+	job := func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Error("RepositoryConfig.Purge.job", "panic in purge job function", r)
+			}
+		}()
+
+		when := time.Now().Add(-dur)
+		repo.PurgeBefore(kind, when)
+	}
+
+	// start a background thread that runs forever, waking up every minute to compare time
+	go scheduler("purger", hour, min, job)
+}
+
+// GenerateTimelapse scans for all files matching the indicated source and kind
+// taken during the indicated date, and generates a timelapse from them. If
+// `diurnal` is true, it uses astronomical sunrise & sunset to limit the
+// timelapse to only daylight hours.
+func (repo *RepositoryConfig) GenerateTimelapse(date time.Time, camera *Camera, kind MediaKind) {
+	TAG := "RepositoryConfig.GenerateTimelapse"
+
+	start := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
+	end := time.Date(date.Year(), date.Month(), date.Day()+1, 0, 0, 0, 0, date.Location())
+
+	if kind != MediaCollected && kind != MediaMotion {
+		panic(fmt.Errorf("cannot generate timelapse for '%s' content", kind))
+	}
+
+	if camera.Diurnal {
+		if camera.Latitude == 0.0 && camera.Longitude == 0.0 {
+			// unlikely someone has a camera at north pole...
+			log.Warn(TAG, fmt.Sprintf("camera '%s' lacks lat or lng %f %f", camera.ID, camera.Latitude, camera.Longitude))
+		} else {
+			start, end = sunrise.SunriseSunset(camera.Latitude, camera.Longitude, date.Year(), date.Month(), date.Day())
+			start = start.Local()
+			end = end.Local()
+		}
+	}
+
+	var next time.Time
+	images := repo.List(camera.ID)
+	log.Debug(TAG, "images", len(images))
+	candidates := []*Image{}
+	for _, img := range images {
+		if img.Kind != kind {
+			continue
+		}
+		if img.Timestamp.Before(start) || end.Before(img.Timestamp) {
+			continue
+		}
+		candidates = append(candidates, img)
+	}
+	log.Debug(TAG, "candidates", len(candidates))
+	log.Debug(TAG, "times", start, end)
+	sort.Slice(candidates, func(i, j int) bool { return candidates[i].Timestamp.Before(candidates[j].Timestamp) })
+	images = []*Image{}
+	names := []string{}
+	for _, img := range candidates {
+		if img.Timestamp.Before(next) {
+			continue
+		} else {
+			next = img.Timestamp.Add(29 * time.Second) // no more than 2 frames per minute
+		}
+		images = append(images, img)
+		names = append(names, img.diskPath)
+	}
+
+	// images now contains a sorted list of all files that should be in the timelapse
+	log.Debug(TAG, "final images", len(images))
+	if len(images) < 1 {
+		log.Debug(TAG, "no images from which to generate timelapse")
+		return
+	}
+
+	// create a temp dir to generate our timelapse in via shelling out to mencoder
+	dir, err := ioutil.TempDir("/tmp", "timelapse-")
+	if err != nil {
+		panic(err)
+	}
+	defer func() {
+		if err := os.Remove(dir); err != nil {
+			log.Error(TAG, fmt.Sprintf("failed to remove tempdir '%s'", dir), err)
+		}
+	}()
+
+	// create a file listing other files to include in the timelapse, to be passed to mencoder
+	indexPath := path.Join(dir, "index")
+	if err := ioutil.WriteFile(indexPath, []byte(strings.Join(names, "\n")), 0600); err != nil {
+		panic(err)
+	}
+	defer func() {
+		if err := os.Remove(indexPath); err != nil {
+			log.Error(TAG, fmt.Sprintf("failed to remove index '%s'", indexPath), err)
+		}
+	}()
+
+	// Run it: mencoder "mf://@/path/to/index" -mf fps=24 -o /path/to/generated.avi -ovc x264
+	args := "mf://@%s -mf fps=24 -o %s -ovc x264"
+	avi := path.Join(dir, "generated.avi")
+	args = fmt.Sprintf(args, indexPath, avi)
+	cmd := exec.Command("mencoder", strings.Split(args, " ")...)
+	if err := cmd.Start(); err != nil {
+		panic(err)
+	}
+	defer func() {
+		if err := os.Remove(avi); err != nil {
+			log.Error(TAG, fmt.Sprintf("failed to remove generated '%s'", avi), err)
+		}
+	}()
+	log.Debug(TAG, "started mencoder with args", args)
+	if err := cmd.Wait(); err != nil {
+		panic(err)
+	}
+	log.Debug(TAG, fmt.Sprintf("mencoder complete for '%s'", avi))
+
+	content, err := ioutil.ReadFile(avi)
+	if err != nil {
+		panic(err)
+	}
+	repo.Store(camera.ID, MediaGenerated, "avi", content)
+
+	log.Status(TAG, fmt.Sprintf("generated timelapse for '%s' from %d images", camera.ID, len(images)))
+}
+
+func (repo *RepositoryConfig) startTimelapser(hour int, min int) {
+	job := func() {
+		for _, camera := range System.Cameras() {
+			today := time.Now().Local()
+			go func(camera *Camera) {
+				if camera.Timelapse == MediaCollected || camera.Timelapse == "both" {
+					repo.GenerateTimelapse(today, camera, MediaCollected)
+				}
+			}(camera)
+			go func(camera *Camera) {
+				if camera.Timelapse == MediaMotion || camera.Timelapse == "both" {
+					repo.GenerateTimelapse(today, camera, MediaMotion)
+				}
+			}(camera)
+		}
+	}
+
+	go scheduler("timelapser", hour, min, job)
 }
 
 /*
