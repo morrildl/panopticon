@@ -15,8 +15,6 @@ import (
 	//"github.com/cpucycle/astrotime"
 
 	"playground/log"
-
-	sunrise "github.com/nathan-osman/go-sunrise"
 )
 
 // RepositoryConfig contains photos. Essentially it owns and oversees the directory where photos are stored.
@@ -25,6 +23,7 @@ type RepositoryConfig struct {
 	RetentionPeriod string
 	Latitude        string
 	Longitude       string
+	DefaultImage    string
 }
 
 // Ready prepares the RepositoryConfig for use.
@@ -111,6 +110,54 @@ func (repo *RepositoryConfig) Latest(source string) *Image {
 		diskPath:  latest,
 		stat:      latestFI,
 	}
+}
+
+// Recents returns recent photo activity. It will return up to 7 most recent
+// images (collected or motion), and up to 4 most recent of the others.
+func (repo *RepositoryConfig) Recents(camera string) (recents []*Image, pinned []*Image, generated []*Image, motion []*Image) {
+	TAG := "RepositoryConfig.Recents"
+
+	cam := System.GetCamera(camera)
+	if cam == nil {
+		panic(fmt.Errorf("unknown camera '%s'", camera))
+	}
+
+	for _, img := range repo.List(camera) {
+		switch img.Kind {
+		case MediaMotion:
+			motion = append(motion, img)
+			fallthrough
+		case MediaCollected: // recents is a *mix* of collected + motion
+			recents = append(recents, img)
+		case MediaGenerated:
+			generated = append(generated, img)
+		case MediaPinned:
+			pinned = append(pinned, img)
+		default:
+			log.Warn(TAG, "unknown media kind", img.Kind)
+		}
+	}
+
+	// note that these need to be sorted in descending order by date, so the comparator is backward
+	sort.Slice(recents, func(i, j int) bool { return recents[i].Timestamp.After(recents[j].Timestamp) })
+	sort.Slice(pinned, func(i, j int) bool { return pinned[i].Timestamp.After(pinned[j].Timestamp) })
+	sort.Slice(generated, func(i, j int) bool { return generated[i].Timestamp.After(generated[j].Timestamp) })
+	sort.Slice(motion, func(i, j int) bool { return motion[i].Timestamp.After(motion[j].Timestamp) })
+
+	if len(recents) > 7 {
+		recents = recents[:7]
+	}
+	if len(pinned) > 4 {
+		pinned = pinned[:4]
+	}
+	if len(motion) > 4 {
+		motion = motion[:4]
+	}
+	if len(generated) > 4 {
+		generated = generated[:4]
+	}
+
+	return
 }
 
 // Locate retrieves the bytes for the indicated image.
@@ -211,22 +258,23 @@ func (repo *RepositoryConfig) PurgeBefore(kind MediaKind, then time.Time) {
 }
 
 func scheduler(tag string, hour int, min int, job func()) {
-	now := time.Now().Local()
+	for {
+		now := time.Now().Local()
 
-	// compute how long we need to sleep for
-	goal := time.Date(now.Year(), now.Month(), now.Day(), hour, min, 0, 0, time.Local)
-	if goal.Before(now) {
-		// specified time already happened today, so advance to same time tomorrow
-		goal = goal.Add(24 * time.Hour)
+		// compute how long we need to sleep for
+		goal := time.Date(now.Year(), now.Month(), now.Day(), hour, min, 0, 0, time.Local)
+		if goal.Before(now) {
+			// specified time already happened today, so advance to same time tomorrow
+			goal = goal.Add(24 * time.Hour)
+		}
+		delta := goal.Sub(now)
+
+		log.Debug(tag, fmt.Sprintf("sleeping for %s until %s", delta/time.Nanosecond, goal.Format(time.RFC3339)))
+		time.Sleep(delta)
+
+		log.Debug(tag, "running as configured")
+		job()
 	}
-	delta := goal.Sub(now)
-
-	log.Debug(tag, fmt.Sprintf("sleeping for %s until %s", delta/time.Nanosecond, goal.Format(time.RFC3339)))
-	time.Sleep(delta)
-
-	log.Debug(tag, "running as configured")
-	job()
-
 }
 
 // PurgeAt configures a job to purge the indicated kindo of image according to
@@ -268,19 +316,11 @@ func (repo *RepositoryConfig) GenerateTimelapse(date time.Time, camera *Camera, 
 	}
 
 	if camera.Diurnal {
-		if camera.Latitude == 0.0 && camera.Longitude == 0.0 {
-			// unlikely someone has a camera at north pole...
-			log.Warn(TAG, fmt.Sprintf("camera '%s' lacks lat or lng %f %f", camera.ID, camera.Latitude, camera.Longitude))
-		} else {
-			start, end = sunrise.SunriseSunset(camera.Latitude, camera.Longitude, date.Year(), date.Month(), date.Day())
-			start = start.Local().Add(-15 * time.Minute)
-			end = end.Local().Add(15 * time.Minute)
-		}
+		_, start, end = camera.LocalDaylight()
 	}
 
 	var next time.Time
 	images := repo.List(camera.ID)
-	log.Debug(TAG, "images", len(images))
 	candidates := []*Image{}
 	for _, img := range images {
 		if img.Kind != kind {
@@ -291,8 +331,6 @@ func (repo *RepositoryConfig) GenerateTimelapse(date time.Time, camera *Camera, 
 		}
 		candidates = append(candidates, img)
 	}
-	log.Debug(TAG, "candidates", len(candidates))
-	log.Debug(TAG, "times", start, end)
 	sort.Slice(candidates, func(i, j int) bool { return candidates[i].Timestamp.Before(candidates[j].Timestamp) })
 	images = []*Image{}
 	names := []string{}
@@ -307,9 +345,8 @@ func (repo *RepositoryConfig) GenerateTimelapse(date time.Time, camera *Camera, 
 	}
 
 	// images now contains a sorted list of all files that should be in the timelapse
-	log.Debug(TAG, "final images", len(images))
 	if len(images) < 1 {
-		log.Debug(TAG, "no images from which to generate timelapse")
+		log.Warn(TAG, "no images from which to generate timelapse")
 		return
 	}
 

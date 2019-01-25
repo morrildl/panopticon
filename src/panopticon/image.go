@@ -122,13 +122,20 @@ func (img *Image) Pin() *Image {
 	}
 
 	// extract file name, kind, and camera/source using our convention
-	dir, file := filepath.Split(diskPath)
-	dir, kind := filepath.Split(dir)
-	_, camera := filepath.Split(dir)
+	chunks := strings.Split(diskPath, string(os.PathSeparator))
+	if len(chunks) < 4 {
+		panic(fmt.Errorf("impossible disk path '%s'", diskPath))
+	}
+	file := chunks[len(chunks)-1]
+	kind := chunks[len(chunks)-2]
+	camera := chunks[len(chunks)-3]
+	if file == "" || kind == "" || camera == "" {
+		panic(fmt.Errorf("missing file/kind/camera '%s'/'%s'/'%s'", file, kind, camera))
+	}
 
 	// more sanity checks to make sure decomposition of path didn't go awry
 	if Repository.segmentToMediaKind(kind) != img.Kind {
-		panic(fmt.Errorf("diskPath does not resolve kind '%s'/'%s'", kind, img.Kind))
+		panic(fmt.Errorf("diskPath (%s) does not resolve kind '%s'/'%s'", diskPath, kind, img.Kind))
 	}
 	if camera != img.Source { // sanity check
 		panic(fmt.Errorf("camera does not resolve '%s'/'%s'", camera, img.Source))
@@ -144,15 +151,16 @@ func (img *Image) Pin() *Image {
 	destDir := Repository.dirFor(camera, MediaPinned)
 
 	// compute new handle, which is the SHA256 hash of file contents + current time + parent directory
-	tb, _ := time.Now().MarshalBinary()
+	timestamp := time.Now()
+	tb, err := timestamp.MarshalBinary()
 	potato := sha256.New()
 	potato.Write(b)
 	potato.Write(tb)
-	hash := potato.Sum([]byte(destDir))
-	newHandle := hex.EncodeToString(hash)
+	potato.Write([]byte(destDir))
+	newHandle := hex.EncodeToString(potato.Sum(nil)[:32])
 
 	// use the same extension (so that a .jpg remains a .jpg etc.)
-	chunks := strings.SplitN(file, ".", 2)
+	chunks = strings.SplitN(file, ".", 2)
 	if len(chunks) != 2 {
 		panic(fmt.Errorf("unable to decompose filename '%s'", file))
 	}

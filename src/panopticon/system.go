@@ -8,9 +8,12 @@ import (
 	"image/png"
 	"sort"
 	"strconv"
+	"time"
 
 	"github.com/boombuler/barcode"
 	"github.com/boombuler/barcode/qr"
+	"github.com/bradfitz/latlong"
+	sunrise "github.com/nathan-osman/go-sunrise"
 )
 
 // TimelapseKind represents the different scenarios for which this system can generate a timelapse
@@ -64,6 +67,42 @@ func (c *Camera) Delete() {
 	}
 }
 
+// LocalDaylight returns current time, sunrise, and sunset for current moment, in the camera's local time.
+func (c *Camera) LocalDaylight() (now time.Time, rise time.Time, set time.Time) {
+	// determine our timezone from lat/long
+	var loc *time.Location
+	if tz := latlong.LookupZoneName(c.Latitude, c.Longitude); tz != "" {
+		if computed, err := time.LoadLocation(tz); err == nil {
+			loc = computed
+		}
+	}
+	if loc == nil {
+		return
+	}
+
+	now = time.Now().In(loc)
+
+	rise, set = sunrise.SunriseSunset(c.Latitude, c.Longitude, now.Year(), now.Month(), now.Day())
+
+	rise = rise.In(loc).Add(-15 * time.Minute)
+	set = set.In(loc).Add(15 * time.Minute)
+
+	return
+}
+
+// IsDark indicates whether the camera is currently offline/sleeping due to
+// darkness. If the camera is not diurnal, this always returns false.
+func (c *Camera) IsDark() bool {
+	// if we're not diurnal, or if location is apparently nonsense, we're never dark
+	if !c.Diurnal || (c.Latitude == 0.0 && c.Longitude == 0.0) {
+		return false
+	}
+
+	now, rise, set := c.LocalDaylight()
+
+	return now.Before(rise) || now.After(set)
+}
+
 // User represents an email (specifically, Google/Gmail) account that is permitted to access this
 // system via OAuth2. It also records a meatspace name for that user.
 type User struct {
@@ -100,6 +139,7 @@ type SystemConfig struct {
 	CameraIDHeader  string
 	PollInterval    int
 	SqlitePath      string
+	DefaultImage    string
 }
 
 // Ready prepares the instance for use, generally by bootstrapping config from its sqlite3 database.
@@ -128,6 +168,7 @@ func (sys *SystemConfig) Ready() {
 				"ServiceName":     &sys.ServiceName,
 				"SessionCookieID": &sys.SessionCookieID,
 				"CameraIDHeader":  &sys.CameraIDHeader,
+				"DefaultImage":    &sys.DefaultImage,
 				// specifically exclude SqlitePath here
 			}[k]
 			if ok {

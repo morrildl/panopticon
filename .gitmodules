@@ -28,3 +28,6 @@
 [submodule "src/vendor/github.com/nathan-osman/go-sunrise"]
 	path = src/vendor/github.com/nathan-osman/go-sunrise
 	url = https://github.com/nathan-osman/go-sunrise
+[submodule "src/vendor/github.com/bradfitz/latlong"]
+	path = src/vendor/github.com/bradfitz/latlong
+	url = https://github.com/bradfitz/latlong

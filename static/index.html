@@ -76,44 +76,6 @@
   </div>
   <!-- end overlay indicating action in progress -->
 
-  <!-- navbar -->
-  <div id="navbar">
-    <nav class="navbar" role="navigation">
-      <waiting-modal :waiting="waiting"></waiting-modal>
-      <error-modal :error="error" :clear="clearError"></error-modal>
-      <div class="navbar-brand" style="text-transform: uppercase; font-size: 125%;">
-        <router-link class="navbar-item" :to="globals.DefaultPath"><img class="logo" src="/static/icon-192.png" style="padding-right: 1em;"/>{{globals.ServiceName}}</router-link>
-      </div>
-      <div class="navbar-menu is-active">
-        <div class="navbar-start">
-          <div class="navbar-item">
-            <div class="dropdown is-hoverable is-small">
-              <div class="dropdown-trigger is-small">
-                <button class="button is-small" aria-haspopup="true" aria-controls="dropdown-menu">
-                  <span>{{ globals.CurrentCamera.Name }}</span>
-                  <span class="icon is-small">
-                    <i class="fa fa-angle-down" aria-hidden="true"></i>
-                  </span>
-                </button>
-              </div>
-              <div class="dropdown-menu is-small" id="dropdown-menu" role="menu">
-                <div class="dropdown-content is-small">
-                  <a v-for="c in globals.Cameras" class="dropdown-item is-small" :class="{'is-active': $route.params.camera == c.ID}" @click="changeCamera(c.ID)">{{ c.Name }}</a>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="navbar-end">
-          <div class="navbar-item"><div class="tabs is-toggle">
-            <router-link tag="li" class="is-tab" :class="{'is-active': $route.path == '/settings'}" to="/settings"><a>Settings</a></router-link>
-          </div></div>
-        </div>
-      </div>
-    </nav>
-  </div>
-  <!-- end navbar -->
-
   <!-- admin form to edit system settings -->
   <div id="settings">
     <div class="columns">
@@ -207,7 +169,7 @@ sententio.us"></textarea>
                     </div>
                   </div>
                   <div class="column is-gapless is-vcentered has-text-right">
-                    <span class="icon is-medium silver"><i class="fa fa-2x fa-cogs"></i></span>
+                    <span class="icon is-medium silver"><i @click="settings()" class="fa fa-2x fa-cogs"></i></span>
                   </div>
                 </div>
               </div>
@@ -221,31 +183,32 @@ sententio.us"></textarea>
                 <div class="columns is-gapless"><div class="column is-gapless">
                   <div class="columns is-gapless">
                     <div class="column is-gapless is-8">
-                      <h2>{{ globals.CurrentCamera.LocalTime }} • {{ globals.CurrentCamera.LocalDate }}</h2>
+                      <h2 v-if="globals.CurrentCamera.LatestTime != ''">{{ globals.CurrentCamera.LatestTime }} • {{ globals.CurrentCamera.LatestDate }}</h2>
+                      <h2 v-if="globals.CurrentCamera.LatestTime == ''">No images found</h2>
                     </div>
                     <div class="column is-gapless is-4 has-text-right">
-                      <a class="button is-info is-small"><span class="icon"><i class="fa fa-thumb-tack"></i></span><span>Save</span></a>
+                      <a class="button is-info is-small" @click="pin(globals.CurrentCamera.LatestHandle)"><span class="icon"><i class="fa fa-thumb-tack"></i></span><span>Save</span></a>
                     </div>
                   </div>
-                  <figure class="image is-16by9"><img class="image is-16x9" :src="globals.CurrentCamera.LatestImageURL"></img></figure>
+                  <figure class="image is-16by9"><img class="image is-16x9" :src="currentImg()"></img></figure>
                   <div class="columns" style="margin-top: 0.25em;">
                     <div class="column">
-                      <figure class="image is-16by9"><img class="image is-16x9" :src="globals.CurrentCamera.LatestImageURL"></img></figure>
+                      <figure class="image is-16by9"><img class="image is-16x9" :src="recentImg(0)"></img></figure>
                     </div>
                     <div class="column">
-                      <figure class="image is-16by9"><img class="image is-16x9" :src="globals.CurrentCamera.LatestImageURL"></img></figure>
+                      <figure class="image is-16by9"><img class="image is-16x9" :src="recentImg(1)"></img></figure>
                     </div>
                     <div class="column">
-                      <figure class="image is-16by9"><img class="image is-16x9" :src="globals.CurrentCamera.LatestImageURL"></img></figure>
+                      <figure class="image is-16by9"><img class="image is-16x9" :src="recentImg(2)"></img></figure>
                     </div>
                     <div class="column">
-                      <figure class="image is-16by9"><img class="image is-16x9" :src="globals.CurrentCamera.LatestImageURL"></img></figure>
+                      <figure class="image is-16by9"><img class="image is-16x9" :src="recentImg(3)"></img></figure>
                     </div>
                     <div class="column">
-                      <figure class="image is-16by9"><img class="image is-16x9" :src="globals.CurrentCamera.LatestImageURL"></img></figure>
+                      <figure class="image is-16by9"><img class="image is-16x9" :src="recentImg(4)"></img></figure>
                     </div>
                     <div class="column">
-                      <figure class="image is-16by9"><img class="image is-16x9" :src="globals.CurrentCamera.LatestImageURL"></img></figure>
+                      <figure class="image is-16by9"><img class="image is-16x9" :src="recentImg(5)"></img></figure>
                     </div>
                   </div>
                 </div></div>
@@ -260,18 +223,18 @@ sententio.us"></textarea>
                 <div class="columns is-gapless">
                   <div class="column is-gapless is-half">
                     <article>
-                      <figure class="image is-16x9"><img :src="globals.CurrentCamera.LatestImageURL"></img></figure>
+                      <figure class="image is-16x9"><img :src="savedImg(0)" alt="wtf1"></img></figure>
                     </article>
                     <article>
-                      <figure class="image is-16x9"><img :src="globals.CurrentCamera.LatestImageURL"></img></figure>
+                      <figure class="image is-16x9"><img :src="savedImg(2)" alt="wtf2"></img></figure>
                     </article>
                   </div>
                   <div class="column is-gapless is-half">
                     <article>
-                      <figure class="image is-16x9"><img :src="globals.CurrentCamera.LatestImageURL"></img></figure>
+                      <figure class="image is-16x9"><img :src="savedImg(1)"></img></figure>
                     </article>
                     <article>
-                      <figure class="image is-16x9"><img :src="globals.CurrentCamera.LatestImageURL"></img></figure>
+                      <figure class="image is-16x9"><img :src="savedImg(3)"></img></figure>
                     </article>
                   </div>
                 </div>
@@ -284,18 +247,18 @@ sententio.us"></textarea>
                 <div class="columns is-gapless">
                   <div class="column is-gapless is-half">
                     <article>
-                      <figure class="image is-16x9"><img :src="globals.CurrentCamera.LatestImageURL"></img></figure>
+                      <figure class="image is-16x9"><img :src="timelapseImg(0)"></img></figure>
                     </article>
                     <article>
-                      <figure class="image is-16x9"><img :src="globals.CurrentCamera.LatestImageURL"></img></figure>
+                      <figure class="image is-16x9"><img :src="timelapseImg(2)"></img></figure>
                     </article>
                   </div>
                   <div class="column is-gapless is-half">
                     <article>
-                      <figure class="image is-16x9"><img :src="globals.CurrentCamera.LatestImageURL"></img></figure>
+                      <figure class="image is-16x9"><img :src="timelapseImg(1)"></img></figure>
                     </article>
                     <article>
-                      <figure class="image is-16x9"><img :src="globals.CurrentCamera.LatestImageURL"></img></figure>
+                      <figure class="image is-16x9"><img :src="timelapseImg(3)"></img></figure>
                     </article>
                   </div>
                 </div>
@@ -307,18 +270,18 @@ sententio.us"></textarea>
                 <div class="columns is-gapless">
                   <div class="column is-gapless is-half">
                     <article>
-                      <figure class="image is-16x9"><img :src="globals.CurrentCamera.LatestImageURL"></img></figure>
+                      <figure class="image is-16x9"><img :src="motionImg()"></img></figure>
                     </article>
                     <article>
-                      <figure class="image is-16x9"><img :src="globals.CurrentCamera.LatestImageURL"></img></figure>
+                      <figure class="image is-16x9"><img :src="motionImg()"></img></figure>
                     </article>
                   </div>
                   <div class="column is-gapless is-half">
                     <article>
-                      <figure class="image is-16x9"><img :src="globals.CurrentCamera.LatestImageURL"></img></figure>
+                      <figure class="image is-16x9"><img :src="motionImg()"></img></figure>
                     </article>
                     <article>
-                      <figure class="image is-16x9"><img :src="globals.CurrentCamera.LatestImageURL"></img></figure>
+                      <figure class="image is-16x9"><img :src="motionImg()"></img></figure>
                     </article>
                   </div>
                 </div>

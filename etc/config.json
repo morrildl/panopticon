@@ -24,7 +24,8 @@
   },
   "Repository": {
     "BaseDirectory": "./var/images",
-    "RetentionPeriod": "336h"
+    "RetentionPeriod": "336h",
+    "DefaultImage": "./static/no-image.png"
   },
   "Session": {
     "SessionCookieID": "X-Panopticon-Session",

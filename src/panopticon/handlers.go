@@ -2,7 +2,6 @@ package panopticon
 
 import (
 	"bytes"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"time"
@@ -15,9 +14,8 @@ import (
 	"panopticon/messages"
 
 	"playground/httputil"
-	"playground/log"
 
-	sunrise "github.com/nathan-osman/go-sunrise"
+	"github.com/bradfitz/latlong"
 )
 
 // ProvisionHandler handles /provision
@@ -31,7 +29,8 @@ func ProvisionHandler(writer http.ResponseWriter, req *http.Request) {
 // StateHandler handles /state
 func StateHandler(writer http.ResponseWriter, req *http.Request) {
 	res := &messages.State{
-		ServiceName: System.ServiceName,
+		ServiceName:  System.ServiceName,
+		DefaultImage: System.DefaultImage,
 	}
 
 	// no camera specified, load them all
@@ -40,25 +39,66 @@ func StateHandler(writer http.ResponseWriter, req *http.Request) {
 	now := time.Now()
 	res.Cameras = []*messages.Camera{}
 	for _, c := range cameras {
-		latest := Repository.Latest(c.ID)
-
-		var latestURL string
-		if latest == nil {
-			latestURL = fmt.Sprintf("/static/no-image.png")
-		} else {
-			latestURL = fmt.Sprintf("/client/image/%s", latest.Handle)
+		loc := time.UTC
+		if tz := latlong.LookupZoneName(c.Latitude, c.Longitude); tz != "" {
+			if computed, err := time.LoadLocation(tz); err == nil {
+				loc = computed
+			}
 		}
+		localNow := now.In(loc)
 
 		mc := &messages.Camera{
-			Name:           c.Name,
-			ID:             c.ID,
-			LatestImageURL: latestURL,
-			LocalTime:      now.Format("3:04pm"), // TODO: timezones
-			LocalDate:      now.Format("Monday, 2 January, 2006"),
-			/* TODO: compute & fill in
+			Name:        c.Name,
+			ID:          c.ID,
+			AspectRatio: c.AspectRatio,
+			LocalTime:   localNow.Format("3:04pm"),
+			LocalDate:   localNow.Format("Monday, 2 January, 2006"),
+			Sleeping:    c.IsDark(),
+
+			// currently unused fields
 			Message: "",
-			*/
+			Offline: false,
 		}
+
+		var latest *Image
+
+		recents, pinned, generated, motion := Repository.Recents(c.ID)
+		if len(recents) < 1 {
+			// technically wrong but if we have no recents it's very unlikely we have anything else
+			res.Cameras = append(res.Cameras, mc)
+			continue
+		}
+
+		// pop the first one off and use it as our hero image
+		latest = recents[0]
+		mc.LatestHandle = latest.Handle
+		latestTS := latest.Timestamp.In(loc)
+		mc.LatestTime = latestTS.Format("3:04pm")
+		mc.LatestDate = latestTS.Format("Monday, 2 January, 2006")
+
+		mc.RecentHandles = []string{}
+		for i, img := range recents {
+			if i == 0 {
+				continue
+			}
+			mc.RecentHandles = append(mc.RecentHandles, img.Handle)
+		}
+
+		mc.PinnedHandles = []string{}
+		for _, img := range pinned {
+			mc.PinnedHandles = append(mc.PinnedHandles, img.Handle)
+		}
+
+		mc.TimelapseHandles = []string{}
+		for _, img := range generated {
+			mc.TimelapseHandles = append(mc.TimelapseHandles, img.Handle)
+		}
+
+		mc.MotionHandles = []string{}
+		for _, img := range motion {
+			mc.MotionHandles = append(mc.MotionHandles, img.Handle)
+		}
+
 		res.Cameras = append(res.Cameras, mc)
 	}
 
@@ -68,17 +108,25 @@ func StateHandler(writer http.ResponseWriter, req *http.Request) {
 // ImageHandler handles /client/image
 func ImageHandler(writer http.ResponseWriter, req *http.Request) {
 	TAG := "panopticon.ImageHandler"
-	badReq := httputil.NewJSONAssertable(writer, TAG, http.StatusBadRequest, appError)
 	notFound := httputil.NewJSONAssertable(writer, TAG, http.StatusNotFound, missingImage)
 
-	imgID := httputil.ExtractSegment(req.URL.Path, 3)
-	badReq.Assert(imgID != "", "missing image ID")
-
-	handle := Repository.Locate(imgID)
-	notFound.Assert(handle != nil, "failed to locate a requested image '%s'", imgID)
-
 	var buf bytes.Buffer
-	handle.Retrieve(&buf)
+
+	imgID := httputil.ExtractSegment(req.URL.Path, 3)
+	if imgID == "" || imgID == "undefined" {
+		if b, err := ioutil.ReadFile(Repository.DefaultImage); err == nil {
+			if n, err := buf.Write(b); n != len(b) || err != nil {
+				panic(err)
+			}
+		} else {
+			panic(err)
+		}
+	} else {
+		handle := Repository.Locate(imgID)
+		notFound.Assert(handle != nil, "failed to locate a requested image '%s'", imgID)
+
+		handle.Retrieve(&buf)
+	}
 
 	httputil.Send(writer, http.StatusOK, "image/jpeg", buf.Bytes())
 }
@@ -126,31 +174,17 @@ func processUpload(writer http.ResponseWriter, req *http.Request, kind MediaKind
 
 	b, err := ioutil.ReadAll(req.Body)
 	ise.Assert(err == nil, "error loading request (%s)", err)
-	img, imgType, err := image.Decode(bytes.NewReader(b))
+	img, _, err := image.Decode(bytes.NewReader(b))
 	badReq.Assert(err == nil, "bytes uploaded are not an image (%s)", err)
 
 	// check local sunrise/sunset times (w/ 15m window either direction) and don't bother to record night images
 	// note that this isn't an error: cameras are assumed to be dumb and not implementing this behavior
-	if cam.Diurnal {
-		now := time.Now().Local()
-		if cam.Latitude == 0.0 && cam.Longitude == 0.0 {
-			// unlikely someone has a camera at north pole...
-			log.Warn(TAG, fmt.Sprintf("diurnal camera '%s' lacks lat or lng %f %f", cam.ID, cam.Latitude, cam.Longitude))
-			// note: no early return -- this will carry on below to record the photo
-		} else {
-			rise, set := sunrise.SunriseSunset(cam.Latitude, cam.Longitude, now.Year(), now.Month(), now.Day())
-			rise = rise.Local().Add(-15 * time.Minute)
-			set = set.Local().Add(15 * time.Minute)
-			if now.Before(rise) || now.After(set) {
-				httputil.SendJSON(writer, http.StatusAccepted, &APIResponse{Artifact: struct{}{}})
-				return
-			}
-		}
+	if cam.IsDark() {
+		httputil.SendJSON(writer, http.StatusAccepted, &APIResponse{Artifact: struct{}{}})
+		return
 	}
 
-	// convert to JPEG if not already
-	// TODO: check jpegginess
-	log.Debug(TAG, "image type", imgType)
+	// convert to JPEG; could save CPU by not re-encoding if already JPEG, but might as well anyway for safety
 	var buf bytes.Buffer
 	err = jpeg.Encode(&buf, img, nil)
 	ise.Assert(err == nil, "error converting to JPEG (%s)", err)

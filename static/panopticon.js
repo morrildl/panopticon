@@ -28,8 +28,10 @@ const globals = {
   Cameras: [],
   ServiceName: "Panopticon",
   DefaultPath: "",
+  DefaultImage: "/static/no-image.png",
   CurrentCamera: {
     Name: "No camera",
+    LatestHandle: "",
   },
 };
 
@@ -217,6 +219,7 @@ const events = Vue.component('state-fetcher', {
       this.callAPI("/client/state", "get", null, (artifact) => {
         globals.Cameras = artifact.Cameras;
         globals.ServiceName = str(artifact.ServiceName);
+        globals.DefaultImage = str(artifact.DefaultImage);
         document.title = globals.ServiceName;
 
         if (str(this.$route.path) == "/" || str(this.$route.path) == "") {
@@ -227,7 +230,7 @@ const events = Vue.component('state-fetcher', {
           }
         }
 
-        globals.CurrentCamera = { Name: "No camera" };
+        globals.CurrentCamera = { Name: "No camera", LatestHandle: "" };
         for (let c of globals.Cameras) {
           if (c.ID == this.$route.params.camera) {
             globals.CurrentCamera = c;
@@ -261,25 +264,72 @@ const events = Vue.component('state-fetcher', {
   },
 });
 
-Vue.component('navbar', { 
-  template: "#navbar", 
-  mixins: [waitingMixin, errorMixin],
-  data: function() { return { globals: globals }},
-  methods: {
-    changeCamera: function(cID) {
-      this.$router.push(`/camera/${cID}`);
-    }
-  }
-});
-
 const noCameras = Vue.component('noCameras', {
   template: "#no-cameras",
   props: ["globals"],
 });
 
+const pinMixin = {
+  data: function() {
+    return {
+
+    };
+  },
+  methods: {
+    pin: function(handle) {
+      if (str(handle) == "") {
+        return;
+      }
+      this.callAPI(`/client/pin/${handle}`, "put", null, (artifact) => {
+        console.log(artifact.NewHandle);
+      }, this.setError);
+    },
+    imgURI: function(handle) {
+      if (str(handle) == "") {
+        return "/static/no-image.png";
+      }
+      return `/client/image/${handle}`;
+    },
+    currentImg: function() {
+      return this.imgURI(globals.CurrentCamera.LatestHandle);
+    }
+  }
+};
+
 const camera = Vue.component('camera', {
   template: "#camera",
+  mixins: [waitingMixin, errorMixin, pinMixin],
   props: ["globals"],
+  methods: {
+    changeCamera: function(cID) {
+      this.$router.push(`/camera/${cID}`);
+    },
+    savedImg: function(slot) {
+      return this.slotImg("PinnedHandles", slot);
+    },
+    motionImg: function(slot) {
+      return this.slotImg("MotionHandles", slot);
+    },
+    timelapseImg: function(slot) {
+      return this.slotImg("TimelapseHandles", slot);
+    },
+    recentImg: function(slot) {
+      return this.slotImg("RecentHandles", slot);
+    },
+    slotImg: function(typ, slot) {
+      if (this.globals.CurrentCamera == undefined || this.globals.CurrentCamera[typ] == undefined) {
+        return "/static/no-image.png";
+      }
+      if (this.globals.CurrentCamera[typ][slot] != undefined) {
+        return this.imgURI(this.globals.CurrentCamera[typ][slot]);
+      } else {
+        return "/static/no-image.png";
+      }
+    },
+    settings: function() {
+      this.$router.push("/settings");
+    },
+  }
 });
 
 const router = new VueRouter({
