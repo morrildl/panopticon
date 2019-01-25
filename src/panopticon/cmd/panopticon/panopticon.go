@@ -90,6 +90,7 @@ func main() {
 	// API endpoints for client UI
 	mux.HandleFunc("/client/state", w.WithMethodSentry("GET").Wrap(panopticon.StateHandler))
 	mux.HandleFunc("/client/image/", w.WithMethodSentry("GET").Wrap(panopticon.ImageHandler))
+	mux.HandleFunc("/client/pin/", w.WithMethodSentry("PUT").Wrap(panopticon.PinHandler))
 
 	// API endpoints for camera clients
 	w = httputil.Wrapper().WithPanicHandler().WithSecretSentry(cfg.Server.CameraAPISecret.Header, cfg.Server.CameraAPISecret.Value)

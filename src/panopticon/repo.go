@@ -273,8 +273,8 @@ func (repo *RepositoryConfig) GenerateTimelapse(date time.Time, camera *Camera, 
 			log.Warn(TAG, fmt.Sprintf("camera '%s' lacks lat or lng %f %f", camera.ID, camera.Latitude, camera.Longitude))
 		} else {
 			start, end = sunrise.SunriseSunset(camera.Latitude, camera.Longitude, date.Year(), date.Month(), date.Day())
-			start = start.Local()
-			end = end.Local()
+			start = start.Local().Add(-15 * time.Minute)
+			end = end.Local().Add(15 * time.Minute)
 		}
 	}
 

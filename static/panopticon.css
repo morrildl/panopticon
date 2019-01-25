@@ -1,6 +1,24 @@
+/* HSL
+$color1: hsla(56%, 68%, 58%, 1);
+$color2: hsla(40%, 67%, 58%, 1);
+$color3: hsla(9%, 48%, 37%, 1);
+$color4: hsla(167%, 48%, 42%, 1);
+$color5: hsla(38%, 49%, 25%, 1);
+*/
+
+:root {
+  --sienna: rgba(172, 117, 69, 1);
+  --orange: rgba(234, 175, 58, 1);
+  --red:    rgba(140, 62, 49, 1);
+  --teal:   rgba(56, 160, 138, 1);
+  --grey: rgba(124, 120, 113, 1);
+  --silver: rgba(183, 181, 177, 1);
+}
+
 body {
   font-family: 'Roboto', sans-serif;
   font-size: 12pt;
+  background-color: var(--grey);
 }
 
 .logo {
@@ -20,25 +38,78 @@ body {
 }
 
 h1 {
-  color: #ff4347;
-  font-size: 125%;
+  color: var(--red);
+  font-size: 200%;
   font-weight: bold;
   padding-top: 0px;
+  padding-bottom: 0px;
   margin: 0px;
+  text-shadow: 0px 3px 15px rgba(0,0,0,0.2);
 }
 
 h2 {
-  color: #555555;
-  font-size: 100%;
+  color: var(--red);
+  font-size: 150%;
+  padding: 0px;
+  margin: 0px;
+  text-shadow: 0px 3px 15px rgba(0,0,0,0.2);
+}
+
+.link-h1 {
+  color: var(--teal);
+  font-size: 125%;
   font-weight: bold;
   padding-top: 0px;
   margin: 0px;
 }
 
-.link-h1 {
-  color: #ff4347;
-  font-size: 125%;
+figure {
+  box-shadow: 0px 5px 15px rgba(0,0,0,0.2);
+}
+
+img { padding: 0px; }
+
+.silver {
+  color: var(--silver);
+}
+
+.picker {
+  color: var(--red);
+  font-size: 150%;
   font-weight: bold;
-  padding-top: 0px;
-  margin: 0px;
+  padding: 0.1em;
+}
+
+/* Bulma overrides */
+.box {
+  border-radius: 2px;
+  background-color: var(--silver);
+  box-shadow: 0px 3px 15px rgba(0,0,0,0.2);
+  padding: 0.5em;
+}
+.tile.is-parent {
+  padding: 0.5em;
+}
+.button.is-info {
+  background-color: var(--teal);
+  box-shadow: 0px 3px 15px rgba(0,0,0,0.2);
+}
+.button.is-info:hover {
+  background-color: var(--teal);
+}
+.dropdown-content {
+  background-color: var(--silver);
+  border-radius: 2px;
+}
+a.dropdown-item {
+  color: var(--sienna);
+  font-size: 115%;
+}
+a.dropdown-item.is-active {
+  color: var(--black);
+  background-color: var(--teal);
+}
+a.dropdown-item:hover {
+  background-color: var(--grey);
+  color: var(--silver);
 }

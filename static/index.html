@@ -184,8 +184,151 @@ sententio.us"></textarea>
   <!-- main camera view -->
   <div id="camera">
     <div class="container">
-      <h1>{{ globals.CurrentCamera.Name }}</h1>
-      <figure class="image is-16by9"><img :src="globals.CurrentCamera.LatestImageURL"></img></figure>
+      <div class="tile is-ancestor">
+        <div class="tile is-vertical">
+
+          <div class="tile is-parent" style="padding: 0px; margin-top: 0.5em;">
+            <div class="tile is-parent">
+              <div class="tile is-child is-12">
+                <div class="columns is-gapless is-vcentered">
+                  <div class="column is-gapless">
+                    <div class="dropdown is-hoverable is-large">
+                      <div class="dropdown-trigger">
+                        <span class="picker" aria-haspopup="true" aria-controls="dropdown-menu">
+                          <span class="h1">{{ globals.CurrentCamera.Name }}</span>
+                          <span class="icon"><i class="fa fa-angle-double-down"></i></span>
+                        </span>
+                      </div>
+                      <div class="dropdown-menu" id="dropdown-menu" role="menu">
+                        <div class="dropdown-content">
+                          <a v-for="c in globals.Cameras" class="dropdown-item is-small" :class="{'is-active': $route.params.camera == c.ID}" @click="changeCamera(c.ID)">{{ c.Name }}</a>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="column is-gapless is-vcentered has-text-right">
+                    <span class="icon is-medium silver"><i class="fa fa-2x fa-cogs"></i></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="tile is-parent" style="padding: 0px;">
+
+            <div class="tile is-parent is-9">
+              <div class="tile is-child box">
+                <div class="columns is-gapless"><div class="column is-gapless">
+                  <div class="columns is-gapless">
+                    <div class="column is-gapless is-8">
+                      <h2>{{ globals.CurrentCamera.LocalTime }} • {{ globals.CurrentCamera.LocalDate }}</h2>
+                    </div>
+                    <div class="column is-gapless is-4 has-text-right">
+                      <a class="button is-info is-small"><span class="icon"><i class="fa fa-thumb-tack"></i></span><span>Save</span></a>
+                    </div>
+                  </div>
+                  <figure class="image is-16by9"><img class="image is-16x9" :src="globals.CurrentCamera.LatestImageURL"></img></figure>
+                  <div class="columns" style="margin-top: 0.25em;">
+                    <div class="column">
+                      <figure class="image is-16by9"><img class="image is-16x9" :src="globals.CurrentCamera.LatestImageURL"></img></figure>
+                    </div>
+                    <div class="column">
+                      <figure class="image is-16by9"><img class="image is-16x9" :src="globals.CurrentCamera.LatestImageURL"></img></figure>
+                    </div>
+                    <div class="column">
+                      <figure class="image is-16by9"><img class="image is-16x9" :src="globals.CurrentCamera.LatestImageURL"></img></figure>
+                    </div>
+                    <div class="column">
+                      <figure class="image is-16by9"><img class="image is-16x9" :src="globals.CurrentCamera.LatestImageURL"></img></figure>
+                    </div>
+                    <div class="column">
+                      <figure class="image is-16by9"><img class="image is-16x9" :src="globals.CurrentCamera.LatestImageURL"></img></figure>
+                    </div>
+                    <div class="column">
+                      <figure class="image is-16by9"><img class="image is-16x9" :src="globals.CurrentCamera.LatestImageURL"></img></figure>
+                    </div>
+                  </div>
+                </div></div>
+              </div>
+            </div>
+
+            <div class="tile is-parent is-vertical is-3">
+
+              <!-- motion block tile -->
+              <div class="tile is-child box">
+                <h2>Saved</h2>
+                <div class="columns is-gapless">
+                  <div class="column is-gapless is-half">
+                    <article>
+                      <figure class="image is-16x9"><img :src="globals.CurrentCamera.LatestImageURL"></img></figure>
+                    </article>
+                    <article>
+                      <figure class="image is-16x9"><img :src="globals.CurrentCamera.LatestImageURL"></img></figure>
+                    </article>
+                  </div>
+                  <div class="column is-gapless is-half">
+                    <article>
+                      <figure class="image is-16x9"><img :src="globals.CurrentCamera.LatestImageURL"></img></figure>
+                    </article>
+                    <article>
+                      <figure class="image is-16x9"><img :src="globals.CurrentCamera.LatestImageURL"></img></figure>
+                    </article>
+                  </div>
+                </div>
+              </div>
+              <!-- end motion block tile -->
+
+              <!-- generated block tile -->
+              <div class="tile is-child box">
+                <h2>Timelapses</h2>
+                <div class="columns is-gapless">
+                  <div class="column is-gapless is-half">
+                    <article>
+                      <figure class="image is-16x9"><img :src="globals.CurrentCamera.LatestImageURL"></img></figure>
+                    </article>
+                    <article>
+                      <figure class="image is-16x9"><img :src="globals.CurrentCamera.LatestImageURL"></img></figure>
+                    </article>
+                  </div>
+                  <div class="column is-gapless is-half">
+                    <article>
+                      <figure class="image is-16x9"><img :src="globals.CurrentCamera.LatestImageURL"></img></figure>
+                    </article>
+                    <article>
+                      <figure class="image is-16x9"><img :src="globals.CurrentCamera.LatestImageURL"></img></figure>
+                    </article>
+                  </div>
+                </div>
+              </div>
+              <!-- end generated block tile -->
+              <!-- generated block tile -->
+              <div class="tile is-child box">
+                <h2>Motion</h2>
+                <div class="columns is-gapless">
+                  <div class="column is-gapless is-half">
+                    <article>
+                      <figure class="image is-16x9"><img :src="globals.CurrentCamera.LatestImageURL"></img></figure>
+                    </article>
+                    <article>
+                      <figure class="image is-16x9"><img :src="globals.CurrentCamera.LatestImageURL"></img></figure>
+                    </article>
+                  </div>
+                  <div class="column is-gapless is-half">
+                    <article>
+                      <figure class="image is-16x9"><img :src="globals.CurrentCamera.LatestImageURL"></img></figure>
+                    </article>
+                    <article>
+                      <figure class="image is-16x9"><img :src="globals.CurrentCamera.LatestImageURL"></img></figure>
+                    </article>
+                  </div>
+                </div>
+              </div>
+              <!-- end generated block tile -->
+            </div>
+          </div>
+
+        </div>
+      </div>
     </div>
   </div>
   <!-- end main camera view -->
@@ -202,7 +345,6 @@ sententio.us"></textarea>
 
 <div id="panopticon-root">
   <state-fetcher></state-fetcher>
-  <navbar></navbar>
   <router-view></router-view>
 </div>
 

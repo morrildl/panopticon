@@ -111,7 +111,7 @@ func (img *Image) Erase() {
 // as the generation behaviors generally do not consider pinned content for inclusion.
 //
 // The returned `*Image` is for the new pinned copy. Its `Handle` will have changed.
-func (img *Image) Pin(reason MediaKind) *Image {
+func (img *Image) Pin() *Image {
 	// basic sanity checks
 	if img.diskPath == "" {
 		panic(fmt.Errorf("missing diskPath for image '%s'", img.Handle))
