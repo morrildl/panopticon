@@ -15,301 +15,359 @@
   See the License for the specific language governing permissions and
   limitations under the License.
 -->
+
 <head>
-<base href="/"/>
-<meta charset="UTF-8"/>
-<meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+  <base href="/" />
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
 
-<link rel="icon" href="/favicon.ico?v=1234"/>
+  <link rel="icon" href="/favicon.ico?v=1234" />
 
-<!-- pin down the viewport, since we're a single-page app -->
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- pin down the viewport, since we're a single-page app -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<!-- prettify the UI w/ Roboto for typography, bulma.io for L&F, and Font Awesome for... icons -->
-<link href='https://fonts.googleapis.com/css?family=Roboto' rel='stylesheet' type='text/css'/>
-<link href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.7.0/css/bulma.min.css" rel="stylesheet" type="text/css"/>
-<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet" type="text/css"/>
-<link href="/static/panopticon.css" rel="stylesheet" type="text/css"/>
+  <!-- prettify the UI w/ Roboto for typography, bulma.io for L&F, and Font Awesome for... icons -->
+  <link href='https://fonts.googleapis.com/css?family=Roboto' rel='stylesheet' type='text/css' />
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.7.0/css/bulma.min.css" rel="stylesheet" type="text/css" />
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet" type="text/css" />
+  <link href="/static/panopticon.css" rel="stylesheet" type="text/css" />
 
-<!-- Axios for XHR, Vue for UI -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.17.1/axios.js" defer></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/vue/2.5.16/vue.js" defer></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/vue-router/3.0.1/vue-router.js" defer></script>
+  <!-- Axios for XHR, Vue for UI -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.17.1/axios.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/2.5.16/vue.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/vue-router/3.0.1/vue-router.js" defer></script>
 
 
-<!-- minified CDN scripts, for production -->
-<!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.17.1/axios.min.js" defer></script> -->
-<!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/2.5.3/vue.min.js" defer></script> -->
-<!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/vue-router/3.0.1/vue-router.min.js" defer></script> -->
+  <!-- minified CDN scripts, for production -->
+  <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.17.1/axios.min.js" defer></script> -->
+  <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/2.5.3/vue.min.js" defer></script> -->
+  <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/vue-router/3.0.1/vue-router.min.js" defer></script> -->
 
-<script src="/static/panopticon.js" defer></script>
+  <script src="/static/panopticon.js" defer></script>
 
-<title></title>
-</head><body>
+  <title></title>
+</head>
 
-<!-- component template definitions -->
-<div style="display: none;">
+<body>
 
-  <!-- overlay indicating action in progress -->
-  <div id="waiting-modal">
-    <div class="modal" :class="{'is-active': waiting}">
-      <div class="modal-background"></div>
-      <div class="modal-content">
+  <!-- component template definitions -->
+  <div style="display: none;">
+
+    <!-- overlay indicating action in progress -->
+    <div id="waiting-modal">
+      <div class="modal" :class="{'is-active': waiting}">
+        <div class="modal-background"></div>
+        <div class="modal-content">
           <div class="box">{{ displayMessage }}</div>
-      </div>
-    </div>
-  </div>
-  <!-- end overlay indicating action in progress -->
-
-  <!-- overlay indicating an error occurred -->
-  <div id="error-modal">
-    <div class="modal" :class="{'is-active': visible}">
-      <div class="modal-background"></div>
-      <div class="modal-content">
-        <div class="notification" :class="{'is-danger': !error.Recoverable, 'is-info': error.Recoverable}">
-          <section class="content">{{ error.message }}</section>
-          <section class="content" v-if="visible">{{ error.extra }}</section>
-          <button v-if="error.recoverable" @click="clear()" class="button is-primary">Dismiss</button>
         </div>
       </div>
     </div>
-  </div>
-  <!-- end overlay indicating action in progress -->
+    <!-- end overlay indicating action in progress -->
 
-  <!-- admin form to edit system settings -->
-  <div id="settings">
-    <div class="columns">
-      <waiting-modal :waiting="xhrPending"></waiting-modal>
-      <error-modal :error="error" :clear="clearError"></error-modal>
-      <div class="column is-8-desktop is-offset-2-desktop is-10-mobile is-offset-1-mobile is-8-tablet is-offset-2-tablet">
-        <div class="columns"><!-- non-mobile columns here, so that user list stacks below settings on phones -->
-          <div class="column is-6">
-            <h1>{{globals.ServiceName}} Settings</h1>
-            <div class="field">
-              <div class="label">Name of this VPN service</div>
-              <div class="control has-icons-left">
-                <input class="input" type="text" placeholder="Panopticon" v-model="serviceName"></input>
-                <span class="icon is-small is-left"><i class="fa fa-tag"></i></span>
-              </div>
-              <p class="help">This is the name users will see in the app.</p>
-            </div>
-
-            <div class="field">
-              <div class="label">Maximum devices per user</div>
-              <div class="control has-icons-left">
-                <input class="input" type="text" placeholder="2" v-model="clientLimit"></input>
-                <span class="icon is-small is-left"><i class="fa fa-clone"></i></span>
-              </div>
-              <p class="help">Users will be able to connect up to this many devices.</p>
-            </div>
-
-            <div class="field">
-              <div class="label">Refresh period</div>
-              <div class="control has-icons-left">
-                <input class="input" type="text" placeholder="90" v-model="clientCertDuration"></input>
-                <span class="icon is-small is-left"><i class="fa fa-calendar"></i></span>
-              </div>
-              <p class="help">This sets the validity period of certificates, in days.</p>
-            </div>
-
-            <div class="field">
-              <div class="label">Approved domains</div>
-              <div class="control">
-                <textarea class="textarea" v-model="whitelistedDomains" placeholder="playground.global
-sententio.us"></textarea>
-              </div>
-              <p class="help">Users with Google accounts in one of these domains will be able to set up
-              access with no action on your part.</p>
-            </div>
-
-            <div class="field is-grouped">
-              <div class="control">
-                <button class="button" @click="cancel()">Cancel</button>
-              </div>
-              <div class="control">
-                <button class="button is-link" @click="submit()">Submit</button>
-              </div>
-            </div>
+    <!-- overlay indicating an error occurred -->
+    <div id="error-modal">
+      <div class="modal" :class="{'is-active': visible}">
+        <div class="modal-background"></div>
+        <div class="modal-content">
+          <div class="notification" :class="{'is-danger': !error.Recoverable, 'is-info': error.Recoverable}">
+            <section class="content">{{ error.message }}</section>
+            <section class="content" v-if="visible">{{ error.extra }}</section>
+            <button v-if="error.recoverable" @click="clear()" class="button is-primary">Dismiss</button>
           </div>
-          <div class="column is-6">
-          </div>
-        </div><!-- end non-mobile columns -->
+        </div>
       </div>
     </div>
-  </div>
-  <!-- end admin form to edit system settings -->
+    <!-- end overlay indicating action in progress -->
 
-  <!-- state fetcher -->
-  <div id="state-fetcher"><div style="display: none;"></div></div>
-  <!-- end state fetcher -->
+    <!-- admin form to edit system settings -->
+    <div id="settings">
+      <div class="columns">
+        <waiting-modal :waiting="xhrPending"></waiting-modal>
+        <error-modal :error="error" :clear="clearError"></error-modal>
+        <div class="column is-8-desktop is-offset-2-desktop is-10-mobile is-offset-1-mobile is-8-tablet is-offset-2-tablet">
+          <div class="columns">
+            <!-- non-mobile columns here, so that user list stacks below settings on phones -->
+            <div class="column is-6">
+              <h1>{{globals.ServiceName}} Settings</h1>
+              <div class="field">
+                <div class="label">Name of this VPN service</div>
+                <div class="control has-icons-left">
+                  <input class="input" type="text" placeholder="Panopticon" v-model="serviceName"></input>
+                  <span class="icon is-small is-left"><i class="fa fa-tag"></i></span>
+                </div>
+                <p class="help">This is the name users will see in the app.</p>
+              </div>
 
-  <!-- main camera view -->
-  <div id="camera">
-    <div class="container">
-      <div class="tile is-ancestor">
-        <div class="tile is-vertical">
+              <div class="field">
+                <div class="label">Maximum devices per user</div>
+                <div class="control has-icons-left">
+                  <input class="input" type="text" placeholder="2" v-model="clientLimit"></input>
+                  <span class="icon is-small is-left"><i class="fa fa-clone"></i></span>
+                </div>
+                <p class="help">Users will be able to connect up to this many devices.</p>
+              </div>
 
-          <div class="tile is-parent" style="padding: 0px; margin-top: 0.5em;">
-            <div class="tile is-parent">
-              <div class="tile is-child is-12">
-                <div class="columns is-gapless is-vcentered">
-                  <div class="column is-gapless">
-                    <div class="dropdown is-hoverable is-large">
-                      <div class="dropdown-trigger">
-                        <span class="picker" aria-haspopup="true" aria-controls="dropdown-menu">
-                          <span class="h1">{{ globals.CurrentCamera.Name }}</span>
-                          <span class="icon"><i class="fa fa-angle-double-down"></i></span>
-                        </span>
+              <div class="field">
+                <div class="label">Refresh period</div>
+                <div class="control has-icons-left">
+                  <input class="input" type="text" placeholder="90" v-model="clientCertDuration"></input>
+                  <span class="icon is-small is-left"><i class="fa fa-calendar"></i></span>
+                </div>
+                <p class="help">This sets the validity period of certificates, in days.</p>
+              </div>
+
+              <div class="field">
+                <div class="label">Approved domains</div>
+                <div class="control">
+                  <textarea class="textarea" v-model="whitelistedDomains" placeholder="playground.global
+sententio.us"></textarea>
+                </div>
+                <p class="help">Users with Google accounts in one of these domains will be able to set up
+                  access with no action on your part.</p>
+              </div>
+
+              <div class="field is-grouped">
+                <div class="control">
+                  <button class="button" @click="cancel()">Cancel</button>
+                </div>
+                <div class="control">
+                  <button class="button is-link" @click="submit()">Submit</button>
+                </div>
+              </div>
+            </div>
+            <div class="column is-6">
+            </div>
+          </div><!-- end non-mobile columns -->
+        </div>
+      </div>
+    </div>
+    <!-- end admin form to edit system settings -->
+
+    <!-- state fetcher -->
+    <div id="state-fetcher">
+      <div style="display: none;"></div>
+    </div>
+    <!-- end state fetcher -->
+
+    <!-- main camera view -->
+    <div id="camera">
+      <div class="container">
+        <div class="tile is-ancestor">
+          <div class="tile is-vertical">
+
+            <div class="tile is-parent" style="padding: 0px; margin-top: 0.5em;">
+              <div class="tile is-parent">
+                <div class="tile is-child is-12">
+                  <div class="columns is-gapless is-vcentered">
+                    <div class="column is-gapless">
+                      <div class="dropdown is-hoverable is-large">
+                        <div class="dropdown-trigger">
+                          <span class="picker" aria-haspopup="true" aria-controls="dropdown-menu">
+                            <span class="h1">{{ globals.CurrentCamera.Name }}</span>
+                            <span class="icon"><i class="fa fa-angle-double-down"></i></span>
+                          </span>
+                        </div>
+                        <div class="dropdown-menu" id="dropdown-menu" role="menu">
+                          <div class="dropdown-content">
+                            <a v-for="c in globals.Cameras" class="dropdown-item is-small" :class="{'is-active': $route.params.camera == c.ID}"
+                              @click="changeCamera(c.ID)">{{ c.Name }}</a>
+                          </div>
+                        </div>
                       </div>
-                      <div class="dropdown-menu" id="dropdown-menu" role="menu">
-                        <div class="dropdown-content">
-                          <a v-for="c in globals.Cameras" class="dropdown-item is-small" :class="{'is-active': $route.params.camera == c.ID}" @click="changeCamera(c.ID)">{{ c.Name }}</a>
+                    </div>
+                    <div class="column is-gapless is-vcentered has-text-right">
+                      <span class="icon is-medium silver"><i @click="settings()" class="fa fa-2x fa-cogs"></i></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="tile is-parent" style="padding: 0px;">
+
+              <div class="tile is-parent is-9">
+                <div class="tile is-child box">
+                  <div class="columns is-gapless">
+                    <div class="column is-gapless">
+                      <div class="columns is-gapless">
+                        <div class="column is-gapless is-8">
+                          <h2 v-if="globals.CurrentCamera.LatestTime != ''">{{ globals.CurrentCamera.LatestTime }} • {{
+                            globals.CurrentCamera.LatestDate }}</h2>
+                          <h2 v-if="globals.CurrentCamera.LatestTime == ''">No images found</h2>
+                        </div>
+                        <div class="column is-gapless is-4 has-text-right">
+                          <a class="button is-info is-small" @click="pin(globals.CurrentCamera.LatestHandle)"><span
+                              class="icon"><i class="fa fa-thumb-tack"></i></span><span>Save</span></a>
+                        </div>
+                      </div>
+                      <figure class="image is-16by9"><img class="image is-16x9" :src="currentImg()" @click="viewCurrent()"></img></figure>
+                      <div class="columns" style="margin-top: 0.25em;">
+                        <div class="column">
+                          <figure class="image is-16by9"><img class="image is-16x9" :src="recentImg(0)" @click="viewRecent(0)"></img></figure>
+                        </div>
+                        <div class="column">
+                          <figure class="image is-16by9"><img class="image is-16x9" :src="recentImg(1)" @click="viewRecent(1)"></img></figure>
+                        </div>
+                        <div class="column">
+                          <figure class="image is-16by9"><img class="image is-16x9" :src="recentImg(2)" @click="viewRecent(2)"></img></figure>
+                        </div>
+                        <div class="column">
+                          <figure class="image is-16by9"><img class="image is-16x9" :src="recentImg(3)" @click="viewRecent(3)"></img></figure>
+                        </div>
+                        <div class="column">
+                          <figure class="image is-16by9"><img class="image is-16x9" :src="recentImg(4)" @click="viewRecent(4)"></img></figure>
+                        </div>
+                        <div class="column">
+                          <figure class="image is-16by9"><img class="image is-16x9" :src="recentImg(5)" @click="viewRecent(5)"></img></figure>
                         </div>
                       </div>
                     </div>
                   </div>
-                  <div class="column is-gapless is-vcentered has-text-right">
-                    <span class="icon is-medium silver"><i @click="settings()" class="fa fa-2x fa-cogs"></i></span>
-                  </div>
                 </div>
               </div>
-            </div>
-          </div>
 
-          <div class="tile is-parent" style="padding: 0px;">
+              <div class="tile is-parent is-vertical is-3">
 
-            <div class="tile is-parent is-9">
-              <div class="tile is-child box">
-                <div class="columns is-gapless"><div class="column is-gapless">
+                <!-- pinned block tile -->
+                <div class="tile is-child box">
+                  <h2><a :href="`/gallery/${globals.CurrentCamera.ID}/pinned`">Saved</a></h2>
                   <div class="columns is-gapless">
-                    <div class="column is-gapless is-8">
-                      <h2 v-if="globals.CurrentCamera.LatestTime != ''">{{ globals.CurrentCamera.LatestTime }} • {{ globals.CurrentCamera.LatestDate }}</h2>
-                      <h2 v-if="globals.CurrentCamera.LatestTime == ''">No images found</h2>
+                    <div class="column is-gapless is-half">
+                      <article>
+                        <figure class="image is-16x9"><img :src="savedImg(0)" @click="viewSaved(0)"></img></figure>
+                      </article>
+                      <article>
+                        <figure class="image is-16x9"><img :src="savedImg(2)" @click="viewSaved(2)"></img></figure>
+                      </article>
                     </div>
-                    <div class="column is-gapless is-4 has-text-right">
-                      <a class="button is-info is-small" @click="pin(globals.CurrentCamera.LatestHandle)"><span class="icon"><i class="fa fa-thumb-tack"></i></span><span>Save</span></a>
-                    </div>
-                  </div>
-                  <figure class="image is-16by9"><img class="image is-16x9" :src="currentImg()"></img></figure>
-                  <div class="columns" style="margin-top: 0.25em;">
-                    <div class="column">
-                      <figure class="image is-16by9"><img class="image is-16x9" :src="recentImg(0)"></img></figure>
-                    </div>
-                    <div class="column">
-                      <figure class="image is-16by9"><img class="image is-16x9" :src="recentImg(1)"></img></figure>
-                    </div>
-                    <div class="column">
-                      <figure class="image is-16by9"><img class="image is-16x9" :src="recentImg(2)"></img></figure>
-                    </div>
-                    <div class="column">
-                      <figure class="image is-16by9"><img class="image is-16x9" :src="recentImg(3)"></img></figure>
-                    </div>
-                    <div class="column">
-                      <figure class="image is-16by9"><img class="image is-16x9" :src="recentImg(4)"></img></figure>
-                    </div>
-                    <div class="column">
-                      <figure class="image is-16by9"><img class="image is-16x9" :src="recentImg(5)"></img></figure>
+                    <div class="column is-gapless is-half">
+                      <article>
+                        <figure class="image is-16x9"><img :src="savedImg(1)" @click="viewSaved(1)"></img></figure>
+                      </article>
+                      <article>
+                        <figure class="image is-16x9"><img :src="savedImg(3)" @click="viewSaved(3)"></img></figure>
+                      </article>
                     </div>
                   </div>
-                </div></div>
+                </div>
+                <!-- end pinned block tile -->
+
+                <!-- generated block tile -->
+                <div class="tile is-child box">
+                  <h2><a :href="`/gallery/${globals.CurrentCamera.ID}/generated`">Timelapses</a></h2>
+                  <div class="columns is-gapless">
+                    <div class="column is-gapless is-half">
+                      <article>
+                        <figure class="image is-16x9"><img :src="timelapseImg(0)" @click="viewTL(0)"></img></figure>
+                      </article>
+                      <article>
+                        <figure class="image is-16x9"><img :src="timelapseImg(2)" @click="viewTL(2)"></img></figure>
+                      </article>
+                    </div>
+                    <div class="column is-gapless is-half">
+                      <article>
+                        <figure class="image is-16x9"><img :src="timelapseImg(1)" @click="viewTL(1)"></img></figure>
+                      </article>
+                      <article>
+                        <figure class="image is-16x9"><img :src="timelapseImg(3)" @click="viewTL(3)"></img></figure>
+                      </article>
+                    </div>
+                  </div>
+                </div>
+                <!-- end generated block tile -->
+
+                <!-- motion block tile -->
+                <div class="tile is-child box">
+                  <h2><a :href="`/gallery/${globals.CurrentCamera.ID}/motion`">Motion</a></h2>
+                  <div class="columns is-gapless">
+                    <div class="column is-gapless is-half">
+                      <article>
+                        <figure class="image is-16x9"><img :src="motionImg()" @click="viewMotion(0)"></img></figure>
+                      </article>
+                      <article>
+                        <figure class="image is-16x9"><img :src="motionImg()" @click="viewMotion(2)"></img></figure>
+                      </article>
+                    </div>
+                    <div class="column is-gapless is-half">
+                      <article>
+                        <figure class="image is-16x9"><img :src="motionImg()" @click="viewMotion(1)"></img></figure>
+                      </article>
+                      <article>
+                        <figure class="image is-16x9"><img :src="motionImg()" @click="viewMotion(3)"></img></figure>
+                      </article>
+                    </div>
+                  </div>
+                </div>
+                <!-- end motion block tile -->
               </div>
             </div>
 
-            <div class="tile is-parent is-vertical is-3">
-
-              <!-- motion block tile -->
-              <div class="tile is-child box">
-                <h2>Saved</h2>
-                <div class="columns is-gapless">
-                  <div class="column is-gapless is-half">
-                    <article>
-                      <figure class="image is-16x9"><img :src="savedImg(0)" alt="wtf1"></img></figure>
-                    </article>
-                    <article>
-                      <figure class="image is-16x9"><img :src="savedImg(2)" alt="wtf2"></img></figure>
-                    </article>
-                  </div>
-                  <div class="column is-gapless is-half">
-                    <article>
-                      <figure class="image is-16x9"><img :src="savedImg(1)"></img></figure>
-                    </article>
-                    <article>
-                      <figure class="image is-16x9"><img :src="savedImg(3)"></img></figure>
-                    </article>
-                  </div>
-                </div>
-              </div>
-              <!-- end motion block tile -->
-
-              <!-- generated block tile -->
-              <div class="tile is-child box">
-                <h2>Timelapses</h2>
-                <div class="columns is-gapless">
-                  <div class="column is-gapless is-half">
-                    <article>
-                      <figure class="image is-16x9"><img :src="timelapseImg(0)"></img></figure>
-                    </article>
-                    <article>
-                      <figure class="image is-16x9"><img :src="timelapseImg(2)"></img></figure>
-                    </article>
-                  </div>
-                  <div class="column is-gapless is-half">
-                    <article>
-                      <figure class="image is-16x9"><img :src="timelapseImg(1)"></img></figure>
-                    </article>
-                    <article>
-                      <figure class="image is-16x9"><img :src="timelapseImg(3)"></img></figure>
-                    </article>
-                  </div>
-                </div>
-              </div>
-              <!-- end generated block tile -->
-              <!-- generated block tile -->
-              <div class="tile is-child box">
-                <h2>Motion</h2>
-                <div class="columns is-gapless">
-                  <div class="column is-gapless is-half">
-                    <article>
-                      <figure class="image is-16x9"><img :src="motionImg()"></img></figure>
-                    </article>
-                    <article>
-                      <figure class="image is-16x9"><img :src="motionImg()"></img></figure>
-                    </article>
-                  </div>
-                  <div class="column is-gapless is-half">
-                    <article>
-                      <figure class="image is-16x9"><img :src="motionImg()"></img></figure>
-                    </article>
-                    <article>
-                      <figure class="image is-16x9"><img :src="motionImg()"></img></figure>
-                    </article>
-                  </div>
-                </div>
-              </div>
-              <!-- end generated block tile -->
-            </div>
           </div>
-
         </div>
       </div>
     </div>
-  </div>
-  <!-- end main camera view -->
+    <!-- end main camera view -->
 
-  <!-- no cameras error view -->
-  <div id="no-cameras">
-    <div class="container">
-      <h2>There are no cameras configured.</h2>
+    <!-- full-screen view of a specific image -->
+    <div id="lightbox">
+      <div class="container">
+
+        <div class="columns is-gapless is-vcentered">
+          <div class="column is-gapless is-8">
+            <h2>{{ camera }} - {{ time }} • {{ date }}</h2>
+          </div>
+          <div class="column is-gapless is-4 has-text-right">
+            <a v-if="!isPinned" class="button is-info is-small" @click="pin($route.params.image)"><span
+                class="icon"><i class="fa fa-thumb-tack"></i></span><span>Save</span></a>
+          </div>
+        </div>
+
+        <div class="tile is-ancestor">
+          <div class="tile is-parent" style="padding: 0px;">
+            <div class="tile is-child box">
+              <figure class="image is-16by9"><img class="image is-16x9" :src="`/client/image/${$route.params.image}`"></img></figure>
+            </div>
+          </div>
+        </div>
+
+      </div>
     </div>
+    <!-- end full-screen view of a specific image -->
+
+    <!-- gallery view of a particular camera media type -->
+    <div id="gallery">
+      <div class="container">
+        <div class="content">
+          <a class="button" @click="next()">Next</a>
+          <a class="button" @click="prev()">Prev</a>
+        </div>
+        <div class="columns is-multiline">
+          <div class="column is-12" v-if="imageList.length < 1">No {{ kind }} for {{ camera }}</div>
+          <div class="column is-4" v-for="img in imageList">
+            <div class="box">
+              <figure class="image is-16by9"><a :href="`/image/${img.Handle}`"><img class="image is-16x9" :src="`/client/image/${img.Handle}`"></img></a></figure>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- end gallery view of a particular camera media type -->
+
+    <!-- no cameras error view -->
+    <div id="no-cameras">
+      <div class="container">
+        <h2>There are no cameras configured.</h2>
+      </div>
+    </div>
+    <!-- end no cameras error view -->
+
+  </div><!-- end templates definition (i.e. end 'display: none;' block) -->
+
+  <div id="panopticon-root">
+    <state-fetcher></state-fetcher>
+    <router-view></router-view>
   </div>
-  <!-- end no cameras error view -->
-
-</div><!-- end templates definition (i.e. end 'display: none;' block) -->
-
-<div id="panopticon-root">
-  <state-fetcher></state-fetcher>
-  <router-view></router-view>
-</div>
 
 </body>
+
 </html>

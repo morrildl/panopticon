@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"io/ioutil"
 	"net/http"
+	"sort"
+	"strconv"
 	"time"
 
 	"image"
@@ -103,6 +105,107 @@ func StateHandler(writer http.ResponseWriter, req *http.Request) {
 	}
 
 	httputil.SendJSON(writer, http.StatusOK, &APIResponse{Artifact: res})
+}
+
+// ImageMetaHandler handles /client/imagemeta
+func ImageMetaHandler(writer http.ResponseWriter, req *http.Request) {
+	TAG := "panopticon.ImageMetaHandler"
+	notFound := httputil.NewJSONAssertable(writer, TAG, http.StatusNotFound, missingImage)
+	badReq := httputil.NewJSONAssertable(writer, TAG, http.StatusBadRequest, clientError)
+	ise := httputil.NewJSONAssertable(writer, TAG, http.StatusInternalServerError, internalError)
+
+	imgID := httputil.ExtractSegment(req.URL.Path, 3)
+	badReq.Assert(imgID != "" && imgID != "undefined", "bogus image ID '%s'", imgID)
+
+	img := Repository.Locate(imgID)
+	notFound.Assert(img != nil, "unknown image '%s'", imgID)
+
+	camera := System.GetCamera(img.Source)
+	ise.Assert(camera != nil, "image '%s' references unknown camera '%s'", img.Handle, img.Source)
+
+	t := img.Timestamp
+	loc := camera.Location()
+	if loc != nil {
+		t = t.In(loc)
+	}
+	res := &messages.ImageMeta{
+		Handle: img.Handle,
+		Camera: camera.Name,
+		Time:   t.Format("3:04pm"),
+		Date:   t.Format("Monday, 2 January, 2006"),
+
+		// not yet used:
+		IsPinned: false,
+	}
+
+	httputil.SendJSON(writer, http.StatusOK, &APIResponse{Artifact: res})
+}
+
+// ImageListHandler handles /client/images
+func ImageListHandler(writer http.ResponseWriter, req *http.Request) {
+	TAG := "panopticon.ImageListHandler"
+	notFound := httputil.NewJSONAssertable(writer, TAG, http.StatusNotFound, missingImage)
+	badReq := httputil.NewJSONAssertable(writer, TAG, http.StatusBadRequest, clientError)
+	ise := httputil.NewJSONAssertable(writer, TAG, http.StatusInternalServerError, internalError)
+
+	camera := httputil.ExtractSegment(req.URL.Path, 3)
+	kindstr := httputil.ExtractSegment(req.URL.Path, 4)
+	badReq.Assert(camera != "" && kindstr != "", "missing camera (%s) or kind (%s)", camera, kindstr)
+
+	kind := Repository.segmentToMediaKind(kindstr)
+	badReq.Assert(kind != MediaUnknown, "request for invalid kind '%s'", kindstr)
+
+	cam := System.GetCamera(camera)
+	notFound.Assert(cam != nil, "request for unknown camera '%s'", camera)
+
+	imgs := Repository.ListKind(camera, kind)
+
+	// reverse sort by timestamp
+	sort.Slice(imgs, func(i, j int) bool { return imgs[i].Timestamp.After(imgs[j].Timestamp) })
+
+	skip := 0
+	per := 0
+
+	err := req.ParseForm()
+	ise.Assert(err == nil, "error parsing request form (%s)", err)
+
+	raw := req.Form.Get("skip")
+	if raw != "" {
+		skip, err = strconv.Atoi(raw)
+		badReq.Assert(err == nil, "unparseable skip value '%s' (%s)", raw, err)
+	}
+	raw = req.Form.Get("per")
+	if raw != "" {
+		per, err = strconv.Atoi(raw)
+		badReq.Assert(err == nil, "unparseable per value '%s' (%s)", raw, err)
+	}
+
+	res := []*messages.ImageMeta{}
+
+	if skip < len(imgs) {
+		end := len(imgs)
+		if skip+per < end {
+			end = skip + per
+		}
+		loc := cam.Location()
+		if loc == nil {
+			loc = time.UTC
+		}
+		for _, img := range imgs[skip:end] {
+			ts := img.Timestamp.In(loc)
+			meta := &messages.ImageMeta{
+				Camera: cam.Name,
+				Handle: img.Handle,
+				Time:   ts.Format("3:04pm"),
+				Date:   ts.Format("Monday, 2 January, 2006"),
+
+				IsPinned: false, // currently unused
+			}
+			res = append(res, meta)
+		}
+	} // else we're past the end, so return no results
+
+	httputil.SendJSON(writer, http.StatusOK, &APIResponse{Artifact: &messages.ImageList{Camera: cam.Name, Images: res}})
 }
 
 // ImageHandler handles /client/image

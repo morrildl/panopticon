@@ -70,12 +70,7 @@ func (c *Camera) Delete() {
 // LocalDaylight returns current time, sunrise, and sunset for current moment, in the camera's local time.
 func (c *Camera) LocalDaylight() (now time.Time, rise time.Time, set time.Time) {
 	// determine our timezone from lat/long
-	var loc *time.Location
-	if tz := latlong.LookupZoneName(c.Latitude, c.Longitude); tz != "" {
-		if computed, err := time.LoadLocation(tz); err == nil {
-			loc = computed
-		}
-	}
+	loc := c.Location()
 	if loc == nil {
 		return
 	}
@@ -84,10 +79,20 @@ func (c *Camera) LocalDaylight() (now time.Time, rise time.Time, set time.Time) 
 
 	rise, set = sunrise.SunriseSunset(c.Latitude, c.Longitude, now.Year(), now.Month(), now.Day())
 
-	rise = rise.In(loc).Add(-15 * time.Minute)
-	set = set.In(loc).Add(15 * time.Minute)
+	rise = rise.In(loc)
+	set = set.In(loc)
 
 	return
+}
+
+// Location returns a time.Location for the camera, according to its Latitude & Longitude.
+func (c *Camera) Location() *time.Location {
+	if tz := latlong.LookupZoneName(c.Latitude, c.Longitude); tz != "" {
+		if loc, err := time.LoadLocation(tz); err == nil {
+			return loc
+		}
+	}
+	return nil
 }
 
 // IsDark indicates whether the camera is currently offline/sleeping due to

@@ -292,7 +292,7 @@ const pinMixin = {
     },
     currentImg: function() {
       return this.imgURI(globals.CurrentCamera.LatestHandle);
-    }
+    },
   }
 };
 
@@ -326,10 +326,106 @@ const camera = Vue.component('camera', {
         return "/static/no-image.png";
       }
     },
+    viewSaved: function(slot) {
+      this.viewImg("PinnedHandles", slot);
+    },
+    viewMotion: function(slot) {
+      this.viewImg("MotionHandles", slot);
+    },
+    viewTL: function(slot) {
+      this.viewImg("TimelapseHandles", slot);
+    },
+    viewRecent: function(slot) {
+      this.viewImg("RecentHandles", slot);
+    },
+    viewImg: function(typ, slot) {
+      if (this.globals.CurrentCamera == undefined || this.globals.CurrentCamera[typ] == undefined) {
+        return;
+      }
+      if (this.globals.CurrentCamera[typ][slot] != undefined) {
+        this.$router.push(`/image/${this.globals.CurrentCamera[typ][slot]}`);
+      }
+    },
+    viewCurrent: function() {
+      if (this.globals.CurrentCamera == undefined || str(this.globals.CurrentCamera.LatestHandle) == "") {
+        return;
+      }
+      this.$router.push(`/image/${this.globals.CurrentCamera.LatestHandle}`);
+    },
     settings: function() {
       this.$router.push("/settings");
     },
   }
+});
+
+const lightbox = Vue.component('lightbox', {
+  template: "#lightbox",
+  mixins: [waitingMixin, errorMixin, pinMixin],
+  props: ["globals"],
+  data: function() {
+    return {
+      date: "",
+      time: "",
+      camera: "",
+      isPinned: false,
+    };
+  },
+  mounted: function() {
+    this.callAPI(`/client/imagemeta/${this.$route.params.image}`, "get", null, (artifact) => {
+      this.date = artifact.Date;
+      this.time = artifact.Time;
+      this.camera = artifact.Camera;
+      this.isPinned = artifact.IsPinned ? true : false;
+    });
+  },
+  methods: {
+  },
+});
+
+const gallery = Vue.component('gallery', {
+  template: "#gallery",
+  mixins: [waitingMixin, errorMixin],
+  props: ["globals"],
+  data: function() {
+    return {
+      camera: "",
+      imageList: [],
+      skip: 0,
+      per: 9,
+    };
+  },
+  computed: {
+    kind: function() {
+      return { 
+        "collected": "recent images",
+        "generated": "timelapses",
+        "pinned": "saved images",
+        "motion": "motion-captured images"
+      }[this.$route.params.kind];
+    },
+  },
+  mounted: function() {
+    this.page();
+  },
+  methods: {
+    page: function() {
+      this.callAPI(`/client/images/${this.$route.params.camera}/${this.$route.params.kind}?skip=${this.skip}&per=${this.per}`, "get", null, (artifact) => {
+        this.imageList = artifact.Images ? artifact.Images : [];
+        this.camera = artifact.Camera;
+      });
+    },
+    next: function() {
+      this.skip += this.per;
+      this.page();
+    },
+    prev: function() {
+      this.skip -= this.per;
+      if (this.skip < 0) {
+        this.skip = 0;
+      }
+      this.page();
+    }
+  },
 });
 
 const router = new VueRouter({
@@ -338,6 +434,8 @@ const router = new VueRouter({
   routes: [
     { path: "/nocameras", component: noCameras, props: {globals: globals} },
     { path: "/camera/:camera", component: camera, props: {globals: globals} },
+    { path: "/image/:image", component: lightbox, props: {globals: globals} },
+    { path: "/gallery/:camera/:kind", component: gallery, props: {globals: globals} },
     { path: "/settings", component: settings, props: {globals: globals} },
 
     //{ path: "/users/:email", component: userDetails, props: (route) => ({ globals: globals, email: route.params.email })},

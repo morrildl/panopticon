@@ -28,3 +28,16 @@ type State struct {
 	ServiceName  string
 	DefaultImage string
 }
+
+type ImageMeta struct {
+	Handle   string
+	Camera   string
+	Time     string
+	Date     string
+	IsPinned bool
+}
+
+type ImageList struct {
+	Camera string
+	Images []*ImageMeta
+}

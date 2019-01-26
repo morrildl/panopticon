@@ -90,6 +90,8 @@ func main() {
 	// API endpoints for client UI
 	mux.HandleFunc("/client/state", w.WithMethodSentry("GET").Wrap(panopticon.StateHandler))
 	mux.HandleFunc("/client/image/", w.WithMethodSentry("GET").Wrap(panopticon.ImageHandler))
+	mux.HandleFunc("/client/imagemeta/", w.WithMethodSentry("GET").Wrap(panopticon.ImageMetaHandler))
+	mux.HandleFunc("/client/images/", w.WithMethodSentry("GET").Wrap(panopticon.ImageListHandler))
 	mux.HandleFunc("/client/pin/", w.WithMethodSentry("PUT").Wrap(panopticon.PinHandler))
 
 	// API endpoints for camera clients

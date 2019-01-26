@@ -15,10 +15,13 @@ $color5: hsla(38%, 49%, 25%, 1);
   --silver: rgba(183, 181, 177, 1);
 }
 
+html {
+  background-color: var(--grey);
+}
+
 body {
   font-family: 'Roboto', sans-serif;
   font-size: 12pt;
-  background-color: var(--grey);
 }
 
 .logo {

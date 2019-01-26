@@ -194,6 +194,38 @@ func (repo *RepositoryConfig) Locate(handle string) *Image {
 	return nil
 }
 
+// ListKind returns the handles of all images of the indicated kind, associated with the indicated source.
+func (repo *RepositoryConfig) ListKind(source string, kind MediaKind) []*Image {
+	if System.GetCamera(source) == nil {
+		panic(fmt.Errorf("attempt to list unknown camera '%s'", source))
+	}
+
+	images := []*Image{}
+	dir := repo.dirFor(source, kind)
+	f, err := os.Open(dir)
+	if err != nil {
+		panic(err)
+	}
+	defer f.Close()
+	entries, err := f.Readdir(0)
+	if err != nil {
+		panic(err)
+	}
+	for _, entry := range entries {
+		images = append(images, &Image{
+			Handle:    strings.Split(entry.Name(), ".")[0],
+			Source:    source,
+			Kind:      kind,
+			IsPinned:  kind == MediaPinned,
+			Timestamp: entry.ModTime(),
+			stat:      entry,
+			diskPath:  repo.canonFile(filepath.Join(dir, entry.Name())),
+		})
+	}
+
+	return images
+}
+
 // List returns the handles of all images associated with the indicated source.
 func (repo *RepositoryConfig) List(source string) []*Image {
 	if System.GetCamera(source) == nil {
@@ -202,27 +234,8 @@ func (repo *RepositoryConfig) List(source string) []*Image {
 
 	images := []*Image{}
 	for _, kind := range AllKinds {
-		dir := repo.dirFor(source, kind)
-		f, err := os.Open(dir)
-		if err != nil {
-			panic(err)
-		}
-		defer f.Close()
-		entries, err := f.Readdir(0)
-		if err != nil {
-			panic(err)
-		}
-		for _, entry := range entries {
-			images = append(images, &Image{
-				Handle:    strings.Split(entry.Name(), ".")[0],
-				Source:    source,
-				Kind:      kind,
-				IsPinned:  kind == MediaPinned,
-				Timestamp: entry.ModTime(),
-				stat:      entry,
-				diskPath:  repo.canonFile(filepath.Join(dir, entry.Name())),
-			})
-		}
+		cur := repo.ListKind(source, kind)
+		images = append(images, cur...)
 	}
 
 	return images
