@@ -17,8 +17,7 @@ type serverConfig struct {
 	BindAddress     string
 	Port            int
 	HTTPPort        int
-	TLSCertPath     string
-	TLSKeyPath      string
+	TLSKeypairs     [][]string
 	StaticPath      string
 	PreloadList     []string
 	CameraAPISecret *struct{ Header, Value string }
@@ -35,7 +34,7 @@ var cfg = &struct {
 	true,
 	"",
 	&serverConfig{
-		"", "", 443, 80, "./server.crt", "./server.key", "./static",
+		"", "", 443, 80, [][]string{[]string{"./server.crt", "./server.key"}}, "./static",
 		[]string{
 			"index.html", "panopticon.css", "panopticon.js", "favicon.ico",
 			"no-image.png", "manifest.json", "icon-192.png", "icon-512.png",
@@ -104,5 +103,5 @@ func main() {
 	server.ListenAndServeTLSRedirector(cfg.Server.Hostname, cfg.Server.HTTPPort)
 
 	// start up the HTTPS server
-	log.Error("main", "shutting down", server.ListenAndServeTLS(cfg.Server.TLSCertPath, cfg.Server.TLSKeyPath))
+	log.Error("main", "shutting down", server.ListenAndServeSNI(cfg.Server.TLSKeypairs))
 }

@@ -6,8 +6,9 @@
     "BindAddress": "",
     "Port": 443,
     "HTTPPort": 80,
-    "TLSCertPath": "./var/server.crt",
-    "TLSKeyPath": "./var/server.key",
+    "TLSKeypairs": [
+      [ "./var/server.crt", "./var/server.key" ]
+    ],
     "StaticPath": "./var/static",
     "CameraAPISecret": {
       "Header": "X-Panopticon-Camera-Secret",
