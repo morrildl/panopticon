@@ -30,6 +30,7 @@
   <link href='https://fonts.googleapis.com/css?family=Roboto' rel='stylesheet' type='text/css' />
   <link rel="stylesheet" href="https://cdn.materialdesignicons.com/2.5.94/css/materialdesignicons.min.css">
   <link rel="stylesheet" href="https://unpkg.com/buefy/dist/buefy.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/viewerjs/1.3.2/viewer.css">
   <link href="/static/panopticon.css" rel="stylesheet" type="text/css" />
 
   <!-- Axios for XHR, Vue for UI, and the Buefy library of Vue/Bulma components -->
@@ -37,6 +38,8 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/2.5.16/vue.js" defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/vue-router/3.0.1/vue-router.js" defer></script>
   <script src="https://unpkg.com/buefy/dist/buefy.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/viewerjs/1.3.2/viewer.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/v-viewer@1.3.2/dist/v-viewer.min.js"></script>
 
   <!-- minified CDN scripts, for production -->
   <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.17.1/axios.min.js" defer></script> -->
@@ -139,6 +142,7 @@ sententio.us"></textarea>
 <div id="camera" style="display: none;">
   <div class="container">
     <b-loading :is-full-page="true" :can-cancel="false" :active="waiting"></b-loading>
+
     <div class="tile is-ancestor">
       <div class="tile is-vertical">
 
@@ -181,7 +185,7 @@ sententio.us"></textarea>
           <div class="tile is-parent is-9">
             <div class="tile is-child box">
               <div class="columns is-gapless">
-                <div class="column is-gapless">
+                <div class="column is-gapless" v-viewer="vvdefaults">
                   <div class="columns is-gapless" style="margin-bottom: 0.25em">
                     <div class="column is-gapless is-8">
                       <span v-if="globals.CurrentCamera.LatestTime != ''">
@@ -197,25 +201,25 @@ sententio.us"></textarea>
                       </a>
                     </div>
                   </div>
-                  <figure class="image is-16by9"><img class="image is-16x9" :src="currentImg()" @click="viewCurrent()"></img></figure>
+                  <figure class="image is-16by9"><img class="image is-16x9" :src="currentImg()"></img></figure>
                   <div class="columns" style="margin-top: 0.25em;">
                     <div class="column">
-                      <figure class="image is-16by9"><img class="image is-16x9" :src="recentImg(0)" @click="viewRecent(0)"></img></figure>
+                      <figure class="image is-16by9"><img class="image is-16x9" :src="recentImg(0)"></img></figure>
                     </div>
                     <div class="column">
-                      <figure class="image is-16by9"><img class="image is-16x9" :src="recentImg(1)" @click="viewRecent(1)"></img></figure>
+                      <figure class="image is-16by9"><img class="image is-16x9" :src="recentImg(1)"></img></figure>
                     </div>
                     <div class="column">
-                      <figure class="image is-16by9"><img class="image is-16x9" :src="recentImg(2)" @click="viewRecent(2)"></img></figure>
+                      <figure class="image is-16by9"><img class="image is-16x9" :src="recentImg(2)"></img></figure>
                     </div>
                     <div class="column">
-                      <figure class="image is-16by9"><img class="image is-16x9" :src="recentImg(3)" @click="viewRecent(3)"></img></figure>
+                      <figure class="image is-16by9"><img class="image is-16x9" :src="recentImg(3)"></img></figure>
                     </div>
                     <div class="column">
-                      <figure class="image is-16by9"><img class="image is-16x9" :src="recentImg(4)" @click="viewRecent(4)"></img></figure>
+                      <figure class="image is-16by9"><img class="image is-16x9" :src="recentImg(4)"></img></figure>
                     </div>
                     <div class="column">
-                      <figure class="image is-16by9"><img class="image is-16x9" :src="recentImg(5)" @click="viewRecent(5)"></img></figure>
+                      <figure class="image is-16by9"><img class="image is-16x9" :src="recentImg(5)"></img></figure>
                     </div>
                   </div>
                 </div>
@@ -228,21 +232,21 @@ sententio.us"></textarea>
             <!-- pinned block tile -->
             <div class="tile is-child box">
               <h2><a :href="`/gallery/${globals.CurrentCamera.ID}/pinned`">Saved</a></h2>
-              <div class="columns is-gapless">
+              <div class="columns is-gapless" v-viewer="vvdefaults">
                 <div class="column is-gapless is-half">
                   <article>
-                    <figure class="image is-16x9"><img :src="savedImg(0)" @click="viewSaved(0)"></img></figure>
+                    <figure class="image is-16x9"><img :src="savedImg(0)"></img></figure>
                   </article>
                   <article>
-                    <figure class="image is-16x9"><img :src="savedImg(2)" @click="viewSaved(2)"></img></figure>
+                    <figure class="image is-16x9"><img :src="savedImg(2)"></img></figure>
                   </article>
                 </div>
                 <div class="column is-gapless is-half">
                   <article>
-                    <figure class="image is-16x9"><img :src="savedImg(1)" @click="viewSaved(1)"></img></figure>
+                    <figure class="image is-16x9"><img :src="savedImg(1)"></img></figure>
                   </article>
                   <article>
-                    <figure class="image is-16x9"><img :src="savedImg(3)" @click="viewSaved(3)"></img></figure>
+                    <figure class="image is-16x9"><img :src="savedImg(3)"></img></figure>
                   </article>
                 </div>
               </div>
@@ -255,18 +259,18 @@ sententio.us"></textarea>
               <div class="columns is-gapless">
                 <div class="column is-gapless is-half">
                   <article>
-                    <figure class="image is-16x9"><img :src="timelapseImg(0)" @click="viewTL(0)"></img></figure>
+                    <figure class="image is-16x9"><img :src="timelapseImg(0)"></img></figure>
                   </article>
                   <article>
-                    <figure class="image is-16x9"><img :src="timelapseImg(2)" @click="viewTL(2)"></img></figure>
+                    <figure class="image is-16x9"><img :src="timelapseImg(2)"></img></figure>
                   </article>
                 </div>
                 <div class="column is-gapless is-half">
                   <article>
-                    <figure class="image is-16x9"><img :src="timelapseImg(1)" @click="viewTL(1)"></img></figure>
+                    <figure class="image is-16x9"><img :src="timelapseImg(1)"></img></figure>
                   </article>
                   <article>
-                    <figure class="image is-16x9"><img :src="timelapseImg(3)" @click="viewTL(3)"></img></figure>
+                    <figure class="image is-16x9"><img :src="timelapseImg(3)"></img></figure>
                   </article>
                 </div>
               </div>
@@ -276,21 +280,21 @@ sententio.us"></textarea>
             <!-- motion block tile -->
             <div class="tile is-child box">
               <h2><a :href="`/gallery/${globals.CurrentCamera.ID}/motion`">Motion</a></h2>
-              <div class="columns is-gapless">
+              <div class="columns is-gapless" v-viewer="vvdefaults">
                 <div class="column is-gapless is-half">
                   <article>
-                    <figure class="image is-16x9"><img :src="motionImg()" @click="viewMotion(0)"></img></figure>
+                    <figure class="image is-16x9"><img :src="motionImg()"></img></figure>
                   </article>
                   <article>
-                    <figure class="image is-16x9"><img :src="motionImg()" @click="viewMotion(2)"></img></figure>
+                    <figure class="image is-16x9"><img :src="motionImg()"></img></figure>
                   </article>
                 </div>
                 <div class="column is-gapless is-half">
                   <article>
-                    <figure class="image is-16x9"><img :src="motionImg()" @click="viewMotion(1)"></img></figure>
+                    <figure class="image is-16x9"><img :src="motionImg()"></img></figure>
                   </article>
                   <article>
-                    <figure class="image is-16x9"><img :src="motionImg()" @click="viewMotion(3)"></img></figure>
+                    <figure class="image is-16x9"><img :src="motionImg()"></img></figure>
                   </article>
                 </div>
               </div>
@@ -305,40 +309,12 @@ sententio.us"></textarea>
 </div>
 <!-- end main camera view -->
 
-<!-- full-screen view of a specific image -->
-<div id="lightbox" style="display: none;">
-  <div class="container">
-
-    <div class="columns is-gapless is-vcentered">
-      <div class="column is-gapless is-8">
-        <h2>{{ camera }} - {{ time }} • {{ date }}</h2>
-      </div>
-      <div class="column is-gapless is-4 has-text-right">
-        <a v-if="!isPinned" class="button is-info is-small" @click="pin($route.params.image)">
-          <b-icon icon="pin" size="is-small"></b-icon>
-          <span>Save</span>
-        </a>
-      </div>
-    </div>
-
-    <div class="tile is-ancestor">
-      <div class="tile is-parent" style="padding: 0px;">
-        <div class="tile is-child box">
-          <figure class="image is-16by9"><img class="image is-16x9" :src="`/client/image/${$route.params.image}`"></img></figure>
-        </div>
-      </div>
-    </div>
-
-  </div>
-</div>
-<!-- end full-screen view of a specific image -->
-
 <!-- gallery view of a particular camera media type -->
 <div id="gallery" style="display: none;">
   <div class="container"><div class="tile">
     <div class="tile is-parent is-vertical">
       <div class="tile is-child">
-        <h2><a @click="camView" >{{ camera }} - {{ kind }}</a></h2>
+        <h2><a @click="camView" >{{ camera }}</a> - {{ kind }}</h2>
       </div>
       <div class="tile is-child box">
         <b-pagination 
@@ -349,11 +325,11 @@ sententio.us"></textarea>
           order="is-centered"
           :per-page="per"
           @change="update"></b-pagination>
-        <div class="columns is-multiline">
+        <div class="columns is-multiline" v-viewer="vvdefaults">
           <div class="column is-12" v-if="imageList.length < 1">No {{ kind }} for {{ camera }}</div>
           <div class="column is-4" v-for="img in imageList">
             <div>
-              <figure class="image is-16by9 shadowy"><a :href="`/image/${img.Handle}`"><img class="image is-16x9" :src="`/client/image/${img.Handle}`"></img></a></figure>
+              <figure class="image is-16by9 shadowy"><img class="image is-16x9" :src="`/client/image/${img.Handle}`"></img></figure>
               <div class="is-small has-text-centered">{{ img.Time }} • {{ img.Date }}</div>
             </div>
           </div>

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 Vue.use(Buefy.default);
+Vue.use(VueViewer.default);
 
 /*
  * Util Functions
@@ -262,11 +263,6 @@ const noCameras = Vue.component('noCameras', {
 });
 
 const pinMixin = {
-  data: function() {
-    return {
-
-    };
-  },
   methods: {
     pin: function(handle) {
       if (str(handle) == "") {
@@ -291,7 +287,12 @@ const pinMixin = {
 const camera = Vue.component('camera', {
   template: "#camera",
   mixins: [waitingMixin, errorMixin, pinMixin],
-  props: ["globals"],
+  props: ["globals", "vvdefaults"],
+  data: function() {
+    return {
+      lightboxUp: false,
+    }
+  },
   methods: {
     changeCamera: function(cID) {
       this.$router.push(`/camera/${cID}`);
@@ -303,7 +304,7 @@ const camera = Vue.component('camera', {
       return this.slotImg("MotionHandles", slot);
     },
     timelapseImg: function(slot) {
-      return this.slotImg("TimelapseHandles", slot);
+      return "x" + this.slotImg("TimelapseHandles", slot); // temporarily break so as not to try to load AVIs
     },
     recentImg: function(slot) {
       return this.slotImg("RecentHandles", slot);
@@ -317,32 +318,6 @@ const camera = Vue.component('camera', {
       } else {
         return "/static/no-image.png";
       }
-    },
-    viewSaved: function(slot) {
-      this.viewImg("PinnedHandles", slot);
-    },
-    viewMotion: function(slot) {
-      this.viewImg("MotionHandles", slot);
-    },
-    viewTL: function(slot) {
-      this.viewImg("TimelapseHandles", slot);
-    },
-    viewRecent: function(slot) {
-      this.viewImg("RecentHandles", slot);
-    },
-    viewImg: function(typ, slot) {
-      if (this.globals.CurrentCamera == undefined || this.globals.CurrentCamera[typ] == undefined) {
-        return;
-      }
-      if (this.globals.CurrentCamera[typ][slot] != undefined) {
-        this.$router.push(`/image/${this.globals.CurrentCamera[typ][slot]}`);
-      }
-    },
-    viewCurrent: function() {
-      if (this.globals.CurrentCamera == undefined || str(this.globals.CurrentCamera.LatestHandle) == "") {
-        return;
-      }
-      this.$router.push(`/image/${this.globals.CurrentCamera.LatestHandle}`);
     },
     settings: function() {
       this.$router.push("/settings");
@@ -377,7 +352,7 @@ const lightbox = Vue.component('lightbox', {
 const gallery = Vue.component('gallery', {
   template: "#gallery",
   mixins: [waitingMixin, errorMixin],
-  props: ["globals"],
+  props: ["globals", "vvdefaults"],
   data: function() {
     return {
       results: 0,
@@ -421,14 +396,18 @@ const gallery = Vue.component('gallery', {
   },
 });
 
+const vvdefaults = {
+  inline: false, button:false, title:false, rotatable:false, scalable:false, navbar: false, toolbar: false,
+};
+
 const router = new VueRouter({
   mode: "history",
   base:  "/",
   routes: [
     { path: "/nocameras", component: noCameras, props: {globals: globals} },
-    { path: "/camera/:camera", component: camera, props: {globals: globals} },
+    { path: "/camera/:camera", component: camera, props: {globals: globals, vvdefaults: vvdefaults} },
     { path: "/image/:image", component: lightbox, props: {globals: globals} },
-    { path: "/gallery/:camera/:kind", component: gallery, props: {globals: globals} },
+    { path: "/gallery/:camera/:kind", component: gallery, props: {globals: globals, vvdefaults: vvdefaults} },
     { path: "/settings", component: settings, props: {globals: globals} },
 
     //{ path: "/users/:email", component: userDetails, props: (route) => ({ globals: globals, email: route.params.email })},
