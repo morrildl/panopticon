@@ -323,13 +323,14 @@ func (repo *RepositoryConfig) GenerateTimelapse(date time.Time, camera *Camera, 
 
 	start := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
 	end := time.Date(date.Year(), date.Month(), date.Day()+1, 0, 0, 0, 0, date.Location())
+	log.Debug(TAG, "date range", date, start, end)
 
 	if kind != MediaCollected && kind != MediaMotion {
 		panic(fmt.Errorf("cannot generate timelapse for '%s' content", kind))
 	}
 
 	if camera.Diurnal {
-		_, start, end = camera.LocalDaylight()
+		_, start, end = camera.LocalDaylight(date)
 	}
 
 	var next time.Time
@@ -416,7 +417,7 @@ func (repo *RepositoryConfig) GenerateTimelapse(date time.Time, camera *Camera, 
 func (repo *RepositoryConfig) startTimelapser(hour int, min int) {
 	job := func() {
 		for _, camera := range System.Cameras() {
-			today := time.Now().Local()
+			today := time.Now().Local().Add(-24 * time.Hour) // do yesterday's timelapse
 			go func(camera *Camera) {
 				if camera.Timelapse == MediaCollected || camera.Timelapse == "both" {
 					repo.GenerateTimelapse(today, camera, MediaCollected)

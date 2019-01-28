@@ -68,14 +68,18 @@ func (c *Camera) Delete() {
 }
 
 // LocalDaylight returns current time, sunrise, and sunset for current moment, in the camera's local time.
-func (c *Camera) LocalDaylight() (now time.Time, rise time.Time, set time.Time) {
+func (c *Camera) LocalDaylight(on time.Time) (now time.Time, rise time.Time, set time.Time) {
 	// determine our timezone from lat/long
 	loc := c.Location()
 	if loc == nil {
 		return
 	}
 
-	now = time.Now().In(loc)
+	if on.IsZero() {
+		now = time.Now().In(loc)
+	} else {
+		now = on
+	}
 
 	rise, set = sunrise.SunriseSunset(c.Latitude, c.Longitude, now.Year(), now.Month(), now.Day())
 
@@ -103,7 +107,7 @@ func (c *Camera) IsDark() bool {
 		return false
 	}
 
-	now, rise, set := c.LocalDaylight()
+	now, rise, set := c.LocalDaylight(time.Time{})
 
 	return now.Before(rise) || now.After(set)
 }

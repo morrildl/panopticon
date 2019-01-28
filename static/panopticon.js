@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+Vue.use(Buefy.default);
+
 /*
  * Util Functions
  */
@@ -36,16 +38,6 @@ const globals = {
 };
 
 const generalError = { Message: "An error occurred in this app.", Extra: "Please reload this page.", Recoverable: false };
-
-Vue.component('waiting-modal', {
-  template: "#waiting-modal",
-  props: [ "message", "waiting" ],
-  computed: {
-    displayMessage: function() {
-      return str(this.message) != "" ? str(this.message) : "A moment please...";
-    },
-  },
-});
 
 Vue.component('error-modal', {
   template: "#error-modal",
@@ -388,9 +380,10 @@ const gallery = Vue.component('gallery', {
   props: ["globals"],
   data: function() {
     return {
+      results: 0,
       camera: "",
       imageList: [],
-      skip: 0,
+      current: 1,
       per: 9,
     };
   },
@@ -403,28 +396,28 @@ const gallery = Vue.component('gallery', {
         "motion": "motion-captured images"
       }[this.$route.params.kind];
     },
+    skip: function() {
+      return (this.current - 1) * this.per;
+    },
   },
   mounted: function() {
-    this.page();
+    this.update();
   },
   methods: {
+    camView: function() {
+      this.$router.push(`/camera/${this.$route.params.camera}`)
+    },
     page: function() {
       this.callAPI(`/client/images/${this.$route.params.camera}/${this.$route.params.kind}?skip=${this.skip}&per=${this.per}`, "get", null, (artifact) => {
         this.imageList = artifact.Images ? artifact.Images : [];
         this.camera = artifact.Camera;
+        this.results = artifact.Total;
       });
     },
-    next: function() {
-      this.skip += this.per;
+    update: function(value) {
+      if (value) { this.current = value; }
       this.page();
     },
-    prev: function() {
-      this.skip -= this.per;
-      if (this.skip < 0) {
-        this.skip = 0;
-      }
-      this.page();
-    }
   },
 });
 

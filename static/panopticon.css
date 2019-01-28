@@ -13,6 +13,7 @@ $color5: hsla(38%, 49%, 25%, 1);
   --teal:   rgba(56, 160, 138, 1);
   --grey: rgba(124, 120, 113, 1);
   --silver: rgba(183, 181, 177, 1);
+  --light: rgba(215, 210, 200, 1);
 }
 
 html {
@@ -58,6 +59,24 @@ h2 {
   text-shadow: 0px 3px 15px rgba(0,0,0,0.2);
 }
 
+h2 a {
+  color: var(--red);
+}
+
+h2 a:hover {
+  color: var(--red);
+  text-decoration: underline;
+}
+
+h1 a {
+  color: var(--red);
+}
+
+h1 a:hover {
+  color: var(--red);
+  text-decoration: underline;
+}
+
 .link-h1 {
   color: var(--teal);
   font-size: 125%;
@@ -66,15 +85,30 @@ h2 {
   margin: 0px;
 }
 
+img {
+  padding: 0px;
+  border-radius: 3px;
+  border: 1px solid var(--grey);
+}
+
 figure {
-  box-shadow: 0px 5px 15px rgba(0,0,0,0.2);
+  box-shadow: 9px 7px 10px rgba(0,0,0,0.2);
 }
 
-img { padding: 0px; }
-
-.silver {
-  color: var(--silver);
+.shadowy {
+  box-shadow: 5px 7px 10px rgba(0,0,0,0.2);
+  border: 1px solid var(--grey);
 }
+
+.perpetual-link {
+  color: var(--sienna);
+}
+
+.perpetual-link:hover {
+  color: var(--sienna);
+  text-decoration: underline;
+}
+
 
 .picker {
   color: var(--red);
@@ -83,36 +117,73 @@ img { padding: 0px; }
   padding: 0.1em;
 }
 
-/* Bulma overrides */
+/* Bulma & Buefy overrides */
 .box {
   border-radius: 2px;
   background-color: var(--silver);
   box-shadow: 0px 3px 15px rgba(0,0,0,0.2);
   padding: 0.5em;
 }
+
 .tile.is-parent {
   padding: 0.5em;
 }
+
 .button.is-info {
   background-color: var(--teal);
   box-shadow: 0px 3px 15px rgba(0,0,0,0.2);
 }
+
 .button.is-info:hover {
   background-color: var(--teal);
 }
+
 .dropdown-content {
   background-color: var(--silver);
   border-radius: 2px;
 }
+
 a.dropdown-item {
   color: var(--sienna);
   font-size: 115%;
 }
+
 a.dropdown-item.is-active {
   color: var(--black);
   background-color: var(--teal);
 }
+
 a.dropdown-item:hover {
   background-color: var(--grey);
   color: var(--silver);
 }
+
+.pagination-ellipsis {
+  color: var(--grey);
+  font-size: 125%;
+}
+
+.pagination-next {
+  background-color: var(--light);
+  color: var(--grey);
+  border-color: var(--sienna);
+}
+
+.pagination-previous {
+  background-color: var(--light);
+  color: var(--grey);
+  border-color: var(--sienna);
+}
+
+.pagination-link {
+  background-color: var(--light);
+  color: var(--grey);
+  border-color: var(--sienna);
+}
+
+.pagination-link.is-current {
+  background-color: var(--teal);
+  color: var(--red);
+  border-color: var(--sienna);
+}
+

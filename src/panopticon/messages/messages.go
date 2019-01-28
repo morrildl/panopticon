@@ -39,5 +39,6 @@ type ImageMeta struct {
 
 type ImageList struct {
 	Camera string
+	Total  int
 	Images []*ImageMeta
 }

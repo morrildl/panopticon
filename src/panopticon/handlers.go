@@ -205,7 +205,7 @@ func ImageListHandler(writer http.ResponseWriter, req *http.Request) {
 		}
 	} // else we're past the end, so return no results
 
-	httputil.SendJSON(writer, http.StatusOK, &APIResponse{Artifact: &messages.ImageList{Camera: cam.Name, Images: res}})
+	httputil.SendJSON(writer, http.StatusOK, &APIResponse{Artifact: &messages.ImageList{Camera: cam.Name, Total: len(imgs), Images: res}})
 }
 
 // ImageHandler handles /client/image
