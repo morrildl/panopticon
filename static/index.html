@@ -232,19 +232,23 @@ sententio.us"></textarea>
             <!-- pinned block tile -->
             <div class="tile is-child box">
               <h2><a :href="`/gallery/${globals.CurrentCamera.ID}/pinned`">Saved</a></h2>
-              <div class="columns is-gapless" v-viewer="vvdefaults">
+              <div class="columns is-gapless is-multiline" v-viewer="vvdefaults">
                 <div class="column is-gapless is-half">
                   <article>
                     <figure class="image is-16x9"><img :src="savedImg(0)"></img></figure>
-                  </article>
-                  <article>
-                    <figure class="image is-16x9"><img :src="savedImg(2)"></img></figure>
                   </article>
                 </div>
                 <div class="column is-gapless is-half">
                   <article>
                     <figure class="image is-16x9"><img :src="savedImg(1)"></img></figure>
                   </article>
+                </div>
+                <div class="column is-gapless is-half">
+                  <article>
+                    <figure class="image is-16x9"><img :src="savedImg(2)"></img></figure>
+                  </article>
+                </div>
+                <div class="column is-gapless is-half">
                   <article>
                     <figure class="image is-16x9"><img :src="savedImg(3)"></img></figure>
                   </article>
@@ -256,19 +260,23 @@ sententio.us"></textarea>
             <!-- generated block tile -->
             <div class="tile is-child box">
               <h2><a :href="`/gallery/${globals.CurrentCamera.ID}/generated`">Timelapses</a></h2>
-              <div class="columns is-gapless">
+              <div class="columns is-gapless is-multiline" v-viewer="vvdefaults">
                 <div class="column is-gapless is-half">
                   <article>
                     <figure class="image is-16x9"><img :src="timelapseImg(0)"></img></figure>
-                  </article>
-                  <article>
-                    <figure class="image is-16x9"><img :src="timelapseImg(2)"></img></figure>
                   </article>
                 </div>
                 <div class="column is-gapless is-half">
                   <article>
                     <figure class="image is-16x9"><img :src="timelapseImg(1)"></img></figure>
                   </article>
+                </div>
+                <div class="column is-gapless is-half">
+                  <article>
+                    <figure class="image is-16x9"><img :src="timelapseImg(2)"></img></figure>
+                  </article>
+                </div>
+                <div class="column is-gapless is-half">
                   <article>
                     <figure class="image is-16x9"><img :src="timelapseImg(3)"></img></figure>
                   </article>
@@ -280,21 +288,25 @@ sententio.us"></textarea>
             <!-- motion block tile -->
             <div class="tile is-child box">
               <h2><a :href="`/gallery/${globals.CurrentCamera.ID}/motion`">Motion</a></h2>
-              <div class="columns is-gapless" v-viewer="vvdefaults">
+              <div class="columns is-gapless is-multiline" v-viewer="vvdefaults">
                 <div class="column is-gapless is-half">
                   <article>
-                    <figure class="image is-16x9"><img :src="motionImg()"></img></figure>
-                  </article>
-                  <article>
-                    <figure class="image is-16x9"><img :src="motionImg()"></img></figure>
+                    <figure class="image is-16x9"><img :src="motionImg(0)"></img></figure>
                   </article>
                 </div>
                 <div class="column is-gapless is-half">
                   <article>
-                    <figure class="image is-16x9"><img :src="motionImg()"></img></figure>
+                    <figure class="image is-16x9"><img :src="motionImg(1)"></img></figure>
                   </article>
+                </div>
+                <div class="column is-gapless is-half">
                   <article>
-                    <figure class="image is-16x9"><img :src="motionImg()"></img></figure>
+                    <figure class="image is-16x9"><img :src="motionImg(2)"></img></figure>
+                  </article>
+                </div>
+                <div class="column is-gapless is-half">
+                  <article>
+                    <figure class="image is-16x9"><img :src="motionImg(3)"></img></figure>
                   </article>
                 </div>
               </div>
