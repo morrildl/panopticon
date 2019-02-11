@@ -1,6 +1,7 @@
 package panopticon
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -10,9 +11,6 @@ import (
 	"sort"
 	"strings"
 	"time"
-
-	//sun "github.com/kelvins/sunrisesunset"
-	//"github.com/cpucycle/astrotime"
 
 	"playground/log"
 )
@@ -47,69 +45,27 @@ func (repo *RepositoryConfig) Ready() {
 // Store updates the latest image for the given source (camera.) The provided image data will be
 // stored to disk, and will replace the previous in-RAM copy as latest from that source. The
 // `handle` returned can be used to refer to the image later, e.g. for lookups.
-func (repo *RepositoryConfig) Store(source string, kind MediaKind, ext string, data []byte) *Image {
-	return CreateImage(source, kind, ext, data)
+func (repo *RepositoryConfig) Store(source string, kind MediaKind, data []byte) *Image {
+	return CreateImage(source, kind, data)
 }
 
-// Latest retrieves the most recent image data received from the indicated source. If no images have
-// been received from that source, `ok` will be false.
+// Latest retrieves the most recent image data received from the indicated source.
 func (repo *RepositoryConfig) Latest(source string) *Image {
-	var latest string
-	var latestTime time.Time
-	var latestFI os.FileInfo
+	var res *Image
 
 	for _, kind := range []MediaKind{MediaCollected, MediaMotion} {
-		dir := repo.dirFor(source, kind)
-		f, err := os.Open(dir)
-		if err != nil {
-			panic(err)
-		}
-		defer f.Close()
-		entries, err := f.Readdir(0)
-		if err != nil {
-			panic(err)
-		}
-
-		for _, entry := range entries {
-			if entry.IsDir() {
+		for _, img := range repo.ListKind(source, kind) {
+			if res == nil {
+				res = img
 				continue
 			}
-			if latest == "" {
-				latest = filepath.Join(dir, entry.Name())
-				latestTime = entry.ModTime()
-				latestFI = entry
-				continue
-			}
-			if entry.ModTime().After(latestTime) {
-				latestTime = entry.ModTime()
-				latest = filepath.Join(dir, entry.Name())
-				latestFI = entry
+			if img.Timestamp.After(res.Timestamp) {
+				res = img
 			}
 		}
 	}
 
-	if latest == "" {
-		return nil
-	}
-
-	latest = repo.canonFile(latest)
-	chunks := strings.Split(latest, string(os.PathSeparator))
-	file := chunks[len(chunks)-1]
-	pin := chunks[len(chunks)-2]
-	camID := chunks[len(chunks)-3]
-	if camID != source {
-		panic(fmt.Errorf("camera ID from '%s' does not match source ('%s' vs. '%s')", latest, camID, source))
-	}
-
-	return &Image{
-		Handle:    strings.Split(file, ".")[0],
-		Source:    source,
-		IsPinned:  repo.segmentToMediaKind(pin) == MediaPinned,
-		Timestamp: latestTime,
-		Kind:      repo.segmentToMediaKind(pin),
-		diskPath:  latest,
-		stat:      latestFI,
-	}
+	return res
 }
 
 // Recents returns recent photo activity. It will return up to 7 most recent
@@ -175,7 +131,11 @@ func (repo *RepositoryConfig) Locate(handle string) *Image {
 				panic(err)
 			}
 			for _, entry := range entries {
-				if strings.HasPrefix(entry.Name(), handle) {
+				name := entry.Name()
+				if kind == MediaGenerated && strings.Split(name, ".")[1] != "jpg" {
+					continue
+				}
+				if strings.HasPrefix(name, handle) {
 					return &Image{
 						Handle:    handle,
 						Source:    camera.ID,
@@ -184,7 +144,7 @@ func (repo *RepositoryConfig) Locate(handle string) *Image {
 						Timestamp: entry.ModTime(),
 
 						stat:     entry,
-						diskPath: filepath.Join(dir, entry.Name()),
+						diskPath: filepath.Join(dir, name),
 					}
 				}
 			}
@@ -212,8 +172,15 @@ func (repo *RepositoryConfig) ListKind(source string, kind MediaKind) []*Image {
 		panic(err)
 	}
 	for _, entry := range entries {
+		s := strings.Split(entry.Name(), ".")
+		if kind == MediaGenerated && s[1] != "jpg" {
+			// for videos, .webm lives side by side with .jpg, but the .jpg is our handle
+			continue
+
+			// TODO: might not hurt to improve extension handling so we aren't hardcoding ".jpg" everywhere
+		}
 		images = append(images, &Image{
-			Handle:    strings.Split(entry.Name(), ".")[0],
+			Handle:    s[0],
 			Source:    source,
 			Kind:      kind,
 			IsPinned:  kind == MediaPinned,
@@ -386,30 +353,40 @@ func (repo *RepositoryConfig) GenerateTimelapse(date time.Time, camera *Camera, 
 		}
 	}()
 
-	// Run it: mencoder "mf://@/path/to/index" -mf fps=24 -o /path/to/generated.avi -ovc x264
-	args := "mf://@%s -mf fps=24 -o %s -ovc x264"
-	avi := path.Join(dir, "generated.avi")
-	args = fmt.Sprintf(args, indexPath, avi)
+	args := "mf://@%s -mf fps=24 -o %s -of lavf -ovc lavc -lavfopts format=webm -lavcopts threads=8:vcodec=libvpx -ffourcc VP80"
+	webm := path.Join(dir, "generated.webm")
+	args = fmt.Sprintf(args, indexPath, webm)
 	cmd := exec.Command("mencoder", strings.Split(args, " ")...)
 	if err := cmd.Start(); err != nil {
 		panic(err)
 	}
 	defer func() {
-		if err := os.Remove(avi); err != nil {
-			log.Error(TAG, fmt.Sprintf("failed to remove generated '%s'", avi), err)
+		if err := os.Remove(webm); err != nil {
+			log.Error(TAG, fmt.Sprintf("failed to remove generated '%s'", webm), err)
 		}
 	}()
 	log.Debug(TAG, "started mencoder with args", args)
 	if err := cmd.Wait(); err != nil {
 		panic(err)
 	}
-	log.Debug(TAG, fmt.Sprintf("mencoder complete for '%s'", avi))
+	log.Debug(TAG, fmt.Sprintf("mencoder complete for '%s'", webm))
 
-	content, err := ioutil.ReadFile(avi)
+	webmBytes, err := ioutil.ReadFile(webm)
 	if err != nil {
 		panic(err)
 	}
-	repo.Store(camera.ID, MediaGenerated, "avi", content)
+
+	still := images[len(images)/2] // already checked len(images) > 0
+	var buf bytes.Buffer
+	still.Retrieve(&buf)
+	stillBytes := buf.Bytes()
+
+	img := repo.Store(camera.ID, MediaGenerated, stillBytes)
+	if img == nil {
+		log.Warn(TAG, fmt.Sprintf("nonerror result but nil image"))
+	} else {
+		img.LinkVideo(webmBytes)
+	}
 
 	log.Status(TAG, fmt.Sprintf("generated timelapse for '%s' from %d images", camera.ID, len(images)))
 }

@@ -67,7 +67,16 @@
     </div>
   </div>
 </div>
-<!-- end overlay indicating action in progress -->
+<!-- end overlay indicating an error occurred -->
+
+<div id="vidya" style="display: none;">
+  <div class="container">
+    <video width="1920" height="1080" autoplay="true" :src="`/client/video/${$route.params.handle}?${(new Date()).getTime()}`" type="video/webm">
+    <!-- <video width="1920" height="1080" autoplay="true" src="/static/test.webm">-->
+    <!-- <source  type="video/avi"></source>-->
+    </video>
+  </div>
+</div>
 
 <!-- admin form to edit system settings -->
 <div id="settings" style="display: none;">
@@ -260,23 +269,23 @@ sententio.us"></textarea>
             <!-- generated block tile -->
             <div class="tile is-child box">
               <h2><a :href="`/gallery/${globals.CurrentCamera.ID}/generated`">Timelapses</a></h2>
-              <div class="columns is-gapless is-multiline" v-viewer="vvdefaults">
-                <div class="column is-gapless is-half">
+              <div class="columns is-gapless is-multiline">
+                <div class="column is-gapless is-half" @click="play(0)">
                   <article>
                     <figure class="image is-16x9"><img :src="timelapseImg(0)"></img></figure>
                   </article>
                 </div>
-                <div class="column is-gapless is-half">
+                <div class="column is-gapless is-half" @click="play(1)">
                   <article>
                     <figure class="image is-16x9"><img :src="timelapseImg(1)"></img></figure>
                   </article>
                 </div>
-                <div class="column is-gapless is-half">
+                <div class="column is-gapless is-half" @click="play(2)">
                   <article>
                     <figure class="image is-16x9"><img :src="timelapseImg(2)"></img></figure>
                   </article>
                 </div>
-                <div class="column is-gapless is-half">
+                <div class="column is-gapless is-half" @click="play(3)">
                   <article>
                     <figure class="image is-16x9"><img :src="timelapseImg(3)"></img></figure>
                   </article>
@@ -341,7 +350,7 @@ sententio.us"></textarea>
           <div class="column is-12" v-if="imageList.length < 1">No {{ kind }} for {{ camera }}</div>
           <div class="column is-4" v-for="img in imageList">
             <div>
-              <figure class="image is-16by9 shadowy"><img class="image is-16x9" :src="`/client/image/${img.Handle}`"></img></figure>
+              <figure class="image is-16by9 shadowy"><img class="image is-16x9" :src="`/client/image/${img.Handle}`" @click="play(img.Handle)"></img></figure>
               <div class="is-small has-text-centered">{{ img.Time }} • {{ img.Date }}</div>
             </div>
           </div>

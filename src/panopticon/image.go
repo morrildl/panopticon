@@ -28,7 +28,7 @@ type Image struct {
 
 // CreateImage stores the bytes to the disk according to config & convention, and returns a handle to the
 // resulting image.
-func CreateImage(source string, kind MediaKind, ext string, b []byte) *Image {
+func CreateImage(source string, kind MediaKind, b []byte) *Image {
 	dir := Repository.dirFor(source, kind)
 
 	// compute a hash of the file based on its contents, disk location, and current time
@@ -41,7 +41,7 @@ func CreateImage(source string, kind MediaKind, ext string, b []byte) *Image {
 	handle := hex.EncodeToString(potato.Sum(nil)[:32])
 
 	// verify that the file doesn't somehow already exist
-	diskPath := Repository.canonFile(filepath.Join(dir, fmt.Sprintf("%s.%s", handle, ext)))
+	diskPath := Repository.canonFile(filepath.Join(dir, fmt.Sprintf("%s.%s", handle, "jpg")))
 	_, err = os.Stat(diskPath)
 	if err != nil {
 		if !os.IsNotExist(err) {
@@ -192,6 +192,43 @@ func (img *Image) Pin() *Image {
 		Timestamp: img.Timestamp,
 		stat:      newStat,
 		diskPath:  destFile,
+	}
+}
+
+// LinkVideo associates video bytes with the image, which is understood to be a
+// still frame from the video, suitable for use as a thumbnail or cover still
+// for the video. Errors if the image is not a video type (i.e. generated/timelapse.)
+func (img *Image) LinkVideo(content []byte) {
+	if img.Kind != MediaGenerated {
+		panic(fmt.Errorf("unable to associate video data with %s for '%s'", img.Kind, img.Handle))
+	}
+	fname := strings.Join([]string{img.Handle, "webm"}, ".")
+	fname = Repository.canonFile(filepath.Join(Repository.dirFor(img.Source, img.Kind), fname))
+	if _, err := os.Stat(fname); err != nil {
+		if !os.IsNotExist(err) {
+			log.Error("Image.LinkVideo", "image '%s' already has video", img.Handle)
+			panic(err)
+		}
+	}
+	if err := ioutil.WriteFile(fname, content, 0660); err != nil {
+		panic(err)
+	}
+}
+
+// RetrieveVideo fetches the bytes of the video for which the image is a still.
+// Besides the usual errors, this will also error if the image is not a
+// video-carrying Kind.
+func (img *Image) RetrieveVideo(buf *bytes.Buffer) {
+	fname := strings.Join([]string{img.Handle, "webm"}, ".")
+	fname = Repository.canonFile(filepath.Join(Repository.dirFor(img.Source, img.Kind), fname))
+	if b, err := ioutil.ReadFile(fname); err != nil {
+		panic(err)
+	} else {
+		if n, err := buf.Write(b); err != nil {
+			panic(err)
+		} else if n != len(b) {
+			panic("partial write to memory buffer")
+		}
 	}
 }
 

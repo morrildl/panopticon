@@ -35,6 +35,10 @@ var schemaStatements = [][]string{
 		"alter table Cameras add Longitude real not null default 0.0",
 		"update Version set Version=3",
 	},
+	[]string{
+		"alter table Settings add Scope text not null default 'SYSTEM'",
+		"update Version set Version=4",
+	},
 }
 
 func (sys *SystemConfig) getDB() *sql.DB {

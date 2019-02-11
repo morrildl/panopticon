@@ -304,7 +304,18 @@ const camera = Vue.component('camera', {
       return this.slotImg("MotionHandles", slot);
     },
     timelapseImg: function(slot) {
-      return "x" + this.slotImg("TimelapseHandles", slot); // temporarily break so as not to try to load AVIs
+      return this.slotImg("TimelapseHandles", slot);
+    },
+    play: function(slot) {
+      if (this.globals.CurrentCamera == undefined || this.globals.CurrentCamera["TimelapseHandles"] == undefined) {
+        return;
+      }
+      if (this.globals.CurrentCamera["TimelapseHandles"][slot] != undefined) {
+        let handle = this.globals.CurrentCamera["TimelapseHandles"][slot];
+        this.$router.push(`/player/${handle}`);
+      } else {
+        return;
+      }
     },
     recentImg: function(slot) {
       return this.slotImg("RecentHandles", slot);
@@ -371,6 +382,9 @@ const gallery = Vue.component('gallery', {
         "motion": "motion-captured images"
       }[this.$route.params.kind];
     },
+    isPlayable: function() {
+      return this.$route.params.kind == "generated";
+    },
     skip: function() {
       return (this.current - 1) * this.per;
     },
@@ -393,6 +407,22 @@ const gallery = Vue.component('gallery', {
       if (value) { this.current = value; }
       this.page();
     },
+    play: function(handle) {
+      if (!this.isPlayable) {
+        return;
+      }
+      this.$router.push(`/player/${handle}`);
+    },
+  },
+});
+
+const vidya = Vue.component('vidya', {
+  template: "#vidya",
+  mixins: [waitingMixin, errorMixin],
+  props: ["globals"],
+  data: function() {
+    return {
+    };
   },
 });
 
@@ -409,6 +439,7 @@ const router = new VueRouter({
     { path: "/image/:image", component: lightbox, props: {globals: globals} },
     { path: "/gallery/:camera/:kind", component: gallery, props: {globals: globals, vvdefaults: vvdefaults} },
     { path: "/settings", component: settings, props: {globals: globals} },
+    { path: "/player/:handle", component: vidya, props: {globals: globals} },
 
     //{ path: "/users/:email", component: userDetails, props: (route) => ({ globals: globals, email: route.params.email })},
   ],

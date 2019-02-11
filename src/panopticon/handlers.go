@@ -208,11 +208,13 @@ func ImageListHandler(writer http.ResponseWriter, req *http.Request) {
 	httputil.SendJSON(writer, http.StatusOK, &APIResponse{Artifact: &messages.ImageList{Camera: cam.Name, Total: len(imgs), Images: res}})
 }
 
-// ImageHandler handles /client/image
+// ImageHandler handles /client/image and /client/video
 func ImageHandler(writer http.ResponseWriter, req *http.Request) {
 	TAG := "panopticon.ImageHandler"
 	notFound := httputil.NewJSONAssertable(writer, TAG, http.StatusNotFound, missingImage)
+	badReq := httputil.NewJSONAssertable(writer, TAG, http.StatusBadRequest, clientError)
 
+	ctype := "image/jpeg"
 	var buf bytes.Buffer
 
 	imgID := httputil.ExtractSegment(req.URL.Path, 3)
@@ -228,10 +230,18 @@ func ImageHandler(writer http.ResponseWriter, req *http.Request) {
 		handle := Repository.Locate(imgID)
 		notFound.Assert(handle != nil, "failed to locate a requested image '%s'", imgID)
 
-		handle.Retrieve(&buf)
+		mode := httputil.ExtractSegment(req.URL.Path, 2)
+		badReq.Assert(mode != "video" || handle.Kind == MediaGenerated, "attempt to access video for non-video '%s'", handle.Handle)
+
+		if mode == "video" {
+			ctype = "video/x-msvideo"
+			handle.RetrieveVideo(&buf)
+		} else {
+			handle.Retrieve(&buf)
+		}
 	}
 
-	httputil.Send(writer, http.StatusOK, "image/jpeg", buf.Bytes())
+	httputil.Send(writer, http.StatusOK, ctype, buf.Bytes())
 }
 
 // PinHandler handles /client/pin/
@@ -292,7 +302,7 @@ func processUpload(writer http.ResponseWriter, req *http.Request, kind MediaKind
 	err = jpeg.Encode(&buf, img, nil)
 	ise.Assert(err == nil, "error converting to JPEG (%s)", err)
 
-	handle := Repository.Store(camID, kind, "jpg", buf.Bytes())
+	handle := Repository.Store(camID, kind, buf.Bytes())
 	res := &struct{ Handle, Timestamp string }{handle.Handle, handle.PrettyTime()}
 
 	httputil.SendJSON(writer, http.StatusAccepted, &APIResponse{Artifact: res})
