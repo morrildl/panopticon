@@ -200,7 +200,7 @@ sententio.us"></textarea>
           <div class="tile is-parent is-9">
             <div class="tile is-child box">
               <div class="columns is-gapless">
-                <div class="column is-gapless" v-viewer="vvdefaults">
+                <div class="column is-gapless">
                   <div class="columns is-gapless" style="margin-bottom: 0.25em">
                     <div class="column is-gapless is-8">
                       <span v-if="globals.CurrentCamera.LatestTime != ''">
@@ -216,7 +216,7 @@ sententio.us"></textarea>
                       </a>
                     </div>
                   </div>
-                  <figure class="image is-16by9"><img class="image is-16x9" :src="currentImg()"></img></figure>
+                  <figure class="image is-16by9" v-viewer="vvdefaults"><img class="image is-16x9" :src="currentImg()"></img></figure>
                   <div class="columns" style="margin-top: 0.25em;">
                     <div class="column">
                       <thumbnail :img="fetchImg('Recent', 0)" :vvdefaults="vvdefaults"></thumbnail>
@@ -313,7 +313,7 @@ sententio.us"></textarea>
 </div>
 <!-- end main camera view -->
 
-<!-- gallery image tile with hoverable button -->
+<!-- gallery image tile with save button -->
 <div id="gallery-item" style="display:none;">
   <div>
     <figure class="image is-16by9 shadowy" v-viewer="vvdefaults">
@@ -326,7 +326,7 @@ sententio.us"></textarea>
     <div class="is-small">{{ caption }}</div>
   </div>
 </div>
-<!-- end gallery image tile with hoverable button -->
+<!-- end gallery image tile with save button -->
 
 <!-- gallery view of a particular camera media type -->
 <div id="gallery" style="display: none;">
@@ -344,7 +344,7 @@ sententio.us"></textarea>
           order="is-centered"
           :per-page="per"
           @change="update"></b-pagination>
-        <div class="columns is-multiline" v-viewer="vvdefaults">
+        <div class="columns is-multiline">
           <div class="column is-12" v-if="imageList.length < 1">No {{ kind }} for {{ camera }}</div>
           <div class="column is-4" v-for="img in imageList">
             <gallery-item :img="img" :onsave="pin" :caption="`${img.Time} • ${img.Date}`" :vvdefaults="vvdefaults"></gallery-item>
