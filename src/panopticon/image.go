@@ -20,7 +20,7 @@ type Image struct {
 	Source    string
 	Timestamp time.Time
 	Kind      MediaKind
-	IsPinned  bool
+	HasVideo  bool
 
 	diskPath string
 	stat     os.FileInfo
@@ -64,7 +64,7 @@ func CreateImage(source string, kind MediaKind, b []byte) *Image {
 		Source:    source,
 		Kind:      kind,
 		Timestamp: timestamp,
-		IsPinned:  kind == MediaPinned,
+		HasVideo:  false,
 		stat:      stat,
 		diskPath:  diskPath,
 	}
@@ -183,13 +183,34 @@ func (img *Image) Pin() *Image {
 		panic(err)
 	}
 
+	hasVideo := false
+	// also copy the adjuct, if there is one
+	if img.Kind == MediaGenerated {
+		adjunct := Repository.canonFile(filepath.Join(Repository.dirFor(camera, img.Kind), fmt.Sprintf("%s.webm", img.Handle)))
+		_, err := os.Stat(adjunct)
+		if err != nil {
+			if os.IsNotExist(err) {
+				panic(fmt.Errorf("generated image '%s' is missing adjunct at '%s' (%s)", img.Handle, adjunct, err))
+			}
+			panic(err)
+		}
+		hasVideo = true
+
+		b, err := ioutil.ReadFile(adjunct)
+
+		destFile := Repository.canonFile(filepath.Join(destDir, fmt.Sprintf("%s.webm", newHandle)))
+		if err := ioutil.WriteFile(destFile, b, 0660); err != nil {
+			panic(err)
+		}
+	}
+
 	// return a handle to the new image
 	return &Image{
 		Handle:    newHandle,
 		Source:    camera,
-		IsPinned:  true,
 		Kind:      MediaPinned,
 		Timestamp: img.Timestamp,
+		HasVideo:  hasVideo,
 		stat:      newStat,
 		diskPath:  destFile,
 	}

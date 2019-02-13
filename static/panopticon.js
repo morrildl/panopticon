@@ -269,7 +269,6 @@ const pinMixin = {
         return;
       }
       this.callAPI(`/client/pin/${handle}`, "put", null, (artifact) => {
-        console.log(artifact.NewHandle);
       }, this.setError);
     },
     imgURI: function(handle) {
@@ -283,6 +282,26 @@ const pinMixin = {
     },
   }
 };
+
+const thumbnail = Vue.component('thumbnail', {
+  template: "#thumbnail",
+  props: ["img", "isvideo", "vvdefaults"],
+  computed: {
+    src: function() {
+      if (str(this.img) == "") {
+        return "/static/no-image.png";
+      }
+      return `/client/image/${this.img.Handle}`;
+    },
+  },
+  methods: {
+    display: function() {
+      if (this.img != undefined && this.img.HasVideo) {
+        this.$router.push(`/player/${this.img.Handle}`);
+      }
+    },
+  },
+});
 
 const camera = Vue.component('camera', {
   template: "#camera",
@@ -298,27 +317,33 @@ const camera = Vue.component('camera', {
       this.$router.push(`/camera/${cID}`);
     },
     savedImg: function(slot) {
-      return this.slotImg("PinnedHandles", slot);
+      return this.slotImg("Pinned", slot).Handle;
     },
     motionImg: function(slot) {
-      return this.slotImg("MotionHandles", slot);
+      return this.slotImg("Motion", slot).Handle;
     },
     timelapseImg: function(slot) {
-      return this.slotImg("TimelapseHandles", slot);
+      return this.slotImg("Timelapse", slot).Handle;
     },
     play: function(slot) {
-      if (this.globals.CurrentCamera == undefined || this.globals.CurrentCamera["TimelapseHandles"] == undefined) {
+      if (this.globals.CurrentCamera == undefined || this.globals.CurrentCamera["Timelapse"] == undefined) {
         return;
       }
-      if (this.globals.CurrentCamera["TimelapseHandles"][slot] != undefined) {
-        let handle = this.globals.CurrentCamera["TimelapseHandles"][slot];
+      if (this.globals.CurrentCamera["Timelapse"][slot] != undefined) {
+        let handle = this.globals.CurrentCamera["Timelapse"][slot].Handle;
         this.$router.push(`/player/${handle}`);
       } else {
         return;
       }
     },
     recentImg: function(slot) {
-      return this.slotImg("RecentHandles", slot);
+      return this.slotImg("Recent", slot).Handle;
+    },
+    fetchImg: function(typ, slot) {
+      if (this.globals.CurrentCamera == undefined || this.globals.CurrentCamera[typ] == undefined) {
+        return undefined;
+      }
+      return this.globals.CurrentCamera[typ][slot];
     },
     slotImg: function(typ, slot) {
       if (this.globals.CurrentCamera == undefined || this.globals.CurrentCamera[typ] == undefined) {
@@ -360,9 +385,24 @@ const lightbox = Vue.component('lightbox', {
   },
 });
 
+const galleryItem = Vue.component('gallery-item', {
+  template: "#gallery-item",
+  props: ["img", "onsave", "caption", "vvdefaults"],
+  data: function() {
+    return { };
+  },
+  methods: {
+    display: function() {
+      if (this.img != undefined && this.img.HasVideo) {
+        this.$router.push(`/player/${this.img.Handle}`);
+      }
+    },
+  },
+});
+
 const gallery = Vue.component('gallery', {
   template: "#gallery",
-  mixins: [waitingMixin, errorMixin],
+  mixins: [waitingMixin, errorMixin, pinMixin],
   props: ["globals", "vvdefaults"],
   data: function() {
     return {
@@ -407,11 +447,11 @@ const gallery = Vue.component('gallery', {
       if (value) { this.current = value; }
       this.page();
     },
-    play: function(handle) {
-      if (!this.isPlayable) {
+    play: function(img) {
+      if (img == undefined || !img.HasVideo) {
         return;
       }
-      this.$router.push(`/player/${handle}`);
+      this.$router.push(`/player/${img.Handle}`);
     },
   },
 });

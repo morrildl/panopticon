@@ -136,12 +136,14 @@ func (repo *RepositoryConfig) Locate(handle string) *Image {
 					continue
 				}
 				if strings.HasPrefix(name, handle) {
+					_, err := os.Stat(filepath.Join(dir, fmt.Sprintf("%s.webm", handle)))
+					hasVideo := (kind == MediaGenerated || err == nil)
 					return &Image{
 						Handle:    handle,
 						Source:    camera.ID,
 						Kind:      kind,
-						IsPinned:  kind == MediaPinned,
 						Timestamp: entry.ModTime(),
+						HasVideo:  hasVideo,
 
 						stat:     entry,
 						diskPath: filepath.Join(dir, name),
@@ -173,20 +175,21 @@ func (repo *RepositoryConfig) ListKind(source string, kind MediaKind) []*Image {
 	}
 	for _, entry := range entries {
 		s := strings.Split(entry.Name(), ".")
-		if kind == MediaGenerated && s[1] != "jpg" {
-			// for videos, .webm lives side by side with .jpg, but the .jpg is our handle
+		if s[1] != "jpg" {
+			// .webm files live alonside their .jpg still images, but we shouldn't return them as handles`
 			continue
-
-			// TODO: might not hurt to improve extension handling so we aren't hardcoding ".jpg" everywhere
 		}
+		_, err := os.Stat(filepath.Join(dir, fmt.Sprintf("%s.webm", s[0])))
+		hasVideo := (kind == MediaGenerated || err == nil)
 		images = append(images, &Image{
 			Handle:    s[0],
 			Source:    source,
 			Kind:      kind,
-			IsPinned:  kind == MediaPinned,
 			Timestamp: entry.ModTime(),
-			stat:      entry,
-			diskPath:  repo.canonFile(filepath.Join(dir, entry.Name())),
+			HasVideo:  hasVideo,
+
+			stat:     entry,
+			diskPath: repo.canonFile(filepath.Join(dir, entry.Name())),
 		})
 	}
 

@@ -147,6 +147,12 @@ sententio.us"></textarea>
 </div>
 <!-- end state fetcher -->
 
+<div id="thumbnail" style="display: none;">
+  <article v-viewer="vvdefaults">
+    <figure class="image is-16x9"><img :src="src" @click="display()"></img></figure>
+  </article>
+</div>
+
 <!-- main camera view -->
 <div id="camera" style="display: none;">
   <div class="container">
@@ -213,22 +219,22 @@ sententio.us"></textarea>
                   <figure class="image is-16by9"><img class="image is-16x9" :src="currentImg()"></img></figure>
                   <div class="columns" style="margin-top: 0.25em;">
                     <div class="column">
-                      <figure class="image is-16by9"><img class="image is-16x9" :src="recentImg(0)"></img></figure>
+                      <thumbnail :img="fetchImg('Recent', 0)" :vvdefaults="vvdefaults"></thumbnail>
                     </div>
                     <div class="column">
-                      <figure class="image is-16by9"><img class="image is-16x9" :src="recentImg(1)"></img></figure>
+                      <thumbnail :img="fetchImg('Recent', 1)" :vvdefaults="vvdefaults"></thumbnail>
                     </div>
                     <div class="column">
-                      <figure class="image is-16by9"><img class="image is-16x9" :src="recentImg(2)"></img></figure>
+                      <thumbnail :img="fetchImg('Recent', 2)" :vvdefaults="vvdefaults"></thumbnail>
                     </div>
                     <div class="column">
-                      <figure class="image is-16by9"><img class="image is-16x9" :src="recentImg(3)"></img></figure>
+                      <thumbnail :img="fetchImg('Recent', 3)" :vvdefaults="vvdefaults"></thumbnail>
                     </div>
                     <div class="column">
-                      <figure class="image is-16by9"><img class="image is-16x9" :src="recentImg(4)"></img></figure>
+                      <thumbnail :img="fetchImg('Recent', 4)" :vvdefaults="vvdefaults"></thumbnail>
                     </div>
                     <div class="column">
-                      <figure class="image is-16by9"><img class="image is-16x9" :src="recentImg(5)"></img></figure>
+                      <thumbnail :img="fetchImg('Recent', 5)" :vvdefaults="vvdefaults"></thumbnail>
                     </div>
                   </div>
                 </div>
@@ -241,26 +247,18 @@ sententio.us"></textarea>
             <!-- pinned block tile -->
             <div class="tile is-child box">
               <h2><a :href="`/gallery/${globals.CurrentCamera.ID}/pinned`">Saved</a></h2>
-              <div class="columns is-gapless is-multiline" v-viewer="vvdefaults">
+              <div class="columns is-gapless is-multiline">
                 <div class="column is-gapless is-half">
-                  <article>
-                    <figure class="image is-16x9"><img :src="savedImg(0)"></img></figure>
-                  </article>
+                  <thumbnail :img="fetchImg('Pinned', 0)" :vvdefaults="vvdefaults"></thumbnail>
                 </div>
                 <div class="column is-gapless is-half">
-                  <article>
-                    <figure class="image is-16x9"><img :src="savedImg(1)"></img></figure>
-                  </article>
+                  <thumbnail :img="fetchImg('Pinned', 1)" :vvdefaults="vvdefaults"></thumbnail>
                 </div>
                 <div class="column is-gapless is-half">
-                  <article>
-                    <figure class="image is-16x9"><img :src="savedImg(2)"></img></figure>
-                  </article>
+                  <thumbnail :img="fetchImg('Pinned', 2)" :vvdefaults="vvdefaults"></thumbnail>
                 </div>
                 <div class="column is-gapless is-half">
-                  <article>
-                    <figure class="image is-16x9"><img :src="savedImg(3)"></img></figure>
-                  </article>
+                  <thumbnail :img="fetchImg('Pinned', 3)" :vvdefaults="vvdefaults"></thumbnail>
                 </div>
               </div>
             </div>
@@ -270,25 +268,17 @@ sententio.us"></textarea>
             <div class="tile is-child box">
               <h2><a :href="`/gallery/${globals.CurrentCamera.ID}/generated`">Timelapses</a></h2>
               <div class="columns is-gapless is-multiline">
-                <div class="column is-gapless is-half" @click="play(0)">
-                  <article>
-                    <figure class="image is-16x9"><img :src="timelapseImg(0)"></img></figure>
-                  </article>
+                <div class="column is-gapless is-half">
+                  <thumbnail :img="fetchImg('Timelapse', 0)" :vvdefaults="vvdefaults"></thumbnail>
                 </div>
-                <div class="column is-gapless is-half" @click="play(1)">
-                  <article>
-                    <figure class="image is-16x9"><img :src="timelapseImg(1)"></img></figure>
-                  </article>
+                <div class="column is-gapless is-half">
+                  <thumbnail :img="fetchImg('Timelapse', 1)" :vvdefaults="vvdefaults"></thumbnail>
                 </div>
-                <div class="column is-gapless is-half" @click="play(2)">
-                  <article>
-                    <figure class="image is-16x9"><img :src="timelapseImg(2)"></img></figure>
-                  </article>
+                <div class="column is-gapless is-half">
+                  <thumbnail :img="fetchImg('Timelapse', 2)" :vvdefaults="vvdefaults"></thumbnail>
                 </div>
-                <div class="column is-gapless is-half" @click="play(3)">
-                  <article>
-                    <figure class="image is-16x9"><img :src="timelapseImg(3)"></img></figure>
-                  </article>
+                <div class="column is-gapless is-half">
+                  <thumbnail :img="fetchImg('Timelapse', 3)" :vvdefaults="vvdefaults"></thumbnail>
                 </div>
               </div>
             </div>
@@ -297,26 +287,19 @@ sententio.us"></textarea>
             <!-- motion block tile -->
             <div class="tile is-child box">
               <h2><a :href="`/gallery/${globals.CurrentCamera.ID}/motion`">Motion</a></h2>
-              <div class="columns is-gapless is-multiline" v-viewer="vvdefaults">
+              <div class="columns is-gapless is-multiline">
                 <div class="column is-gapless is-half">
-                  <article>
-                    <figure class="image is-16x9"><img :src="motionImg(0)"></img></figure>
-                  </article>
+                  <thumbnail :img="fetchImg('Motion', 0)" :vvdefaults="vvdefaults"></thumbnail>
                 </div>
                 <div class="column is-gapless is-half">
-                  <article>
-                    <figure class="image is-16x9"><img :src="motionImg(1)"></img></figure>
-                  </article>
+                  <thumbnail :img="fetchImg('Motion', 1)" :vvdefaults="vvdefaults"></thumbnail>
                 </div>
                 <div class="column is-gapless is-half">
-                  <article>
-                    <figure class="image is-16x9"><img :src="motionImg(2)"></img></figure>
-                  </article>
+                  <thumbnail :img="fetchImg('Motion', 2)" :vvdefaults="vvdefaults"></thumbnail>
                 </div>
                 <div class="column is-gapless is-half">
-                  <article>
-                    <figure class="image is-16x9"><img :src="motionImg(3)"></img></figure>
-                  </article>
+                  <thumbnail :img="fetchImg('Motion', 3)" :vvdefaults="vvdefaults"></thumbnail>
+                </div>
                 </div>
               </div>
             </div>
@@ -329,6 +312,21 @@ sententio.us"></textarea>
   </div>
 </div>
 <!-- end main camera view -->
+
+<!-- gallery image tile with hoverable button -->
+<div id="gallery-item" style="display:none;">
+  <div>
+    <figure class="image is-16by9 shadowy" v-viewer="vvdefaults">
+      <img class="image is-16x9" :src="`/client/image/${img.Handle}`" @click="display(img.Handle)"></img>
+      <a class="button is-info is-small" @click="onsave(img.Handle)" style="position: absolute; top: -0.5em; right: -0.5em;">
+        <b-icon icon="pin" size="is-small"></b-icon>
+        <span>Save</span>
+      </a></span>
+    </figure>
+    <div class="is-small">{{ caption }}</div>
+  </div>
+</div>
+<!-- end gallery image tile with hoverable button -->
 
 <!-- gallery view of a particular camera media type -->
 <div id="gallery" style="display: none;">
@@ -349,10 +347,7 @@ sententio.us"></textarea>
         <div class="columns is-multiline" v-viewer="vvdefaults">
           <div class="column is-12" v-if="imageList.length < 1">No {{ kind }} for {{ camera }}</div>
           <div class="column is-4" v-for="img in imageList">
-            <div>
-              <figure class="image is-16by9 shadowy"><img class="image is-16x9" :src="`/client/image/${img.Handle}`" @click="play(img.Handle)"></img></figure>
-              <div class="is-small has-text-centered">{{ img.Time }} • {{ img.Date }}</div>
-            </div>
+            <gallery-item :img="img" :onsave="pin" :caption="`${img.Time} • ${img.Date}`" :vvdefaults="vvdefaults"></gallery-item>
           </div>
         </div>
       </div>

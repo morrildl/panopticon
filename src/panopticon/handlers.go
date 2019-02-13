@@ -78,27 +78,27 @@ func StateHandler(writer http.ResponseWriter, req *http.Request) {
 		mc.LatestTime = latestTS.Format("3:04pm")
 		mc.LatestDate = latestTS.Format("Monday, 2 January, 2006")
 
-		mc.RecentHandles = []string{}
+		mc.Recent = []*messages.ImageMeta{}
 		for i, img := range recents {
 			if i == 0 {
 				continue
 			}
-			mc.RecentHandles = append(mc.RecentHandles, img.Handle)
+			mc.Recent = append(mc.Recent, &messages.ImageMeta{Handle: img.Handle, HasVideo: img.HasVideo})
 		}
 
-		mc.PinnedHandles = []string{}
+		mc.Pinned = []*messages.ImageMeta{}
 		for _, img := range pinned {
-			mc.PinnedHandles = append(mc.PinnedHandles, img.Handle)
+			mc.Pinned = append(mc.Pinned, &messages.ImageMeta{Handle: img.Handle, HasVideo: img.HasVideo})
 		}
 
-		mc.TimelapseHandles = []string{}
+		mc.Timelapse = []*messages.ImageMeta{}
 		for _, img := range generated {
-			mc.TimelapseHandles = append(mc.TimelapseHandles, img.Handle)
+			mc.Timelapse = append(mc.Timelapse, &messages.ImageMeta{Handle: img.Handle, HasVideo: img.HasVideo})
 		}
 
-		mc.MotionHandles = []string{}
+		mc.Motion = []*messages.ImageMeta{}
 		for _, img := range motion {
-			mc.MotionHandles = append(mc.MotionHandles, img.Handle)
+			mc.Motion = append(mc.Motion, &messages.ImageMeta{Handle: img.Handle, HasVideo: img.HasVideo})
 		}
 
 		res.Cameras = append(res.Cameras, mc)
@@ -129,13 +129,11 @@ func ImageMetaHandler(writer http.ResponseWriter, req *http.Request) {
 		t = t.In(loc)
 	}
 	res := &messages.ImageMeta{
-		Handle: img.Handle,
-		Camera: camera.Name,
-		Time:   t.Format("3:04pm"),
-		Date:   t.Format("Monday, 2 January, 2006"),
-
-		// not yet used:
-		IsPinned: false,
+		Handle:   img.Handle,
+		Camera:   camera.Name,
+		Time:     t.Format("3:04pm"),
+		Date:     t.Format("Monday, 2 January, 2006"),
+		HasVideo: img.HasVideo,
 	}
 
 	httputil.SendJSON(writer, http.StatusOK, &APIResponse{Artifact: res})
@@ -194,12 +192,11 @@ func ImageListHandler(writer http.ResponseWriter, req *http.Request) {
 		for _, img := range imgs[skip:end] {
 			ts := img.Timestamp.In(loc)
 			meta := &messages.ImageMeta{
-				Camera: cam.Name,
-				Handle: img.Handle,
-				Time:   ts.Format("3:04pm"),
-				Date:   ts.Format("Monday, 2 January, 2006"),
-
-				IsPinned: false, // currently unused
+				Camera:   cam.Name,
+				Handle:   img.Handle,
+				Time:     ts.Format("3:04pm"),
+				Date:     ts.Format("Monday, 2 January, 2006"),
+				HasVideo: img.HasVideo,
 			}
 			res = append(res, meta)
 		}
@@ -231,7 +228,7 @@ func ImageHandler(writer http.ResponseWriter, req *http.Request) {
 		notFound.Assert(handle != nil, "failed to locate a requested image '%s'", imgID)
 
 		mode := httputil.ExtractSegment(req.URL.Path, 2)
-		badReq.Assert(mode != "video" || handle.Kind == MediaGenerated, "attempt to access video for non-video '%s'", handle.Handle)
+		badReq.Assert(mode != "video" || handle.HasVideo, "attempt to access video for non-video '%s'", handle.Handle, *handle)
 
 		if mode == "video" {
 			ctype = "video/x-msvideo"

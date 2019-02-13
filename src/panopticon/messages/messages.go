@@ -13,14 +13,14 @@ type Camera struct {
 	LocalDate string
 
 	// information about recent activity
-	Message          string
-	LatestTime       string
-	LatestDate       string
-	LatestHandle     string
-	RecentHandles    []string
-	PinnedHandles    []string
-	TimelapseHandles []string
-	MotionHandles    []string
+	Message      string
+	LatestTime   string
+	LatestDate   string
+	LatestHandle string
+	Recent       []*ImageMeta
+	Pinned       []*ImageMeta
+	Timelapse    []*ImageMeta
+	Motion       []*ImageMeta
 }
 
 type State struct {
@@ -31,10 +31,10 @@ type State struct {
 
 type ImageMeta struct {
 	Handle   string
-	Camera   string
-	Time     string
-	Date     string
-	IsPinned bool
+	Camera   string `json:",omitempty"`
+	Time     string `json:",omitempty"`
+	Date     string `json:",omitempty"`
+	HasVideo bool
 }
 
 type ImageList struct {
