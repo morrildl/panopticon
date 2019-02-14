@@ -15,28 +15,35 @@
 Vue.use(Buefy.default);
 Vue.use(VueViewer.default);
 
-/*
- * Util Functions
- */
- 
-// helper function, because lolJavaScript
-function str(s) {
-  if ((s !== undefined) && (s !== null) && (s !== "")) {
-    return s;
-  }
-  return "";
-}
-
-const globals = {
-  Cameras: [],
-  ServiceName: "Panopticon",
-  DefaultPath: "",
-  DefaultImage: "/static/no-image.png",
-  CurrentCamera: {
-    Name: "No camera",
-    LatestHandle: "",
+const globals = new Vuex.Store({
+  state: {
+    ServiceName: "Panopticon",
+    DefaultPath: "",
+    DefaultImage: "/static/no-image.png",
+    Cameras: [],
+    CurrentCamera: {
+      Name: "No camera",
+      LatestHandle: "",
+    },
   },
-};
+  mutations: {
+    "cameras": function(state, cameras) {
+      state.Cameras = cameras;
+    },
+    "service-name": function(state, name) {
+      state.ServiceName = name;
+    },
+    "default-image": function(state, uri) {
+      state.DefaultImage = uri;
+    },
+    "default-path": function(state, path) {
+      state.DefaultPath = path;
+    },
+    "current-camera": function(state, cam) {
+      state.CurrentCamera = cam;
+    },
+  },
+});
 
 const generalError = { Message: "An error occurred in this app.", Extra: "Please reload this page.", Recoverable: false };
 
@@ -45,12 +52,12 @@ Vue.component('error-modal', {
   props: [ "error", "clear" ],
   computed: {
     visible: function() {
-      return str(this.error.message) != "";
+      return this.$str(this.error.message) != "";
     },
   },
 });
 
-const waitingMixin = {
+const apiMixin = {
   data: function() {
     return {
       waiting: false,
@@ -142,7 +149,6 @@ const confirmMixin = {
 
 const settings = Vue.component('settings', {
   template: "#settings",
-  props: [ "globals" ],
   mounted: function() {
     axios.get("/api/config").then((res) => {
       if (res.data.Artifact) {
@@ -170,10 +176,10 @@ const settings = Vue.component('settings', {
   methods: {
     clearError: function() { this.error = { }; },
     cancel: function() {
-      this.$router.push(globals.DefaultPath);
+      this.$router.push(this.$store.state.DefaultPath);
     },
     submit: function() {
-      let whitelistedDomains = str(""+this.whitelistedDomains).split(" ").filter(w => w != "");
+      let whitelistedDomains = this.$str(""+this.whitelistedDomains).split(" ").filter(w => w != "");
       let payload = {
         ServiceName: this.serviceName,
         ClientLimit: parseInt(this.clientLimit),
@@ -189,7 +195,7 @@ const settings = Vue.component('settings', {
         return;
       }
       axios.put("/api/config", json=payload).then((res) => {
-        this.$router.push(globals.DefaultPath);
+        this.$router.push(this.$store.state.DefaultPath);
         document.location.reload();
       }).catch((err) => {
         this.error = err.response.data.Error ? err.response.data.Error : generalError;
@@ -200,33 +206,34 @@ const settings = Vue.component('settings', {
 
 const events = Vue.component('state-fetcher', {
   template: "#state-fetcher",
-  mixins: [waitingMixin, errorMixin],
+  mixins: [apiMixin, errorMixin],
   data: function() {
     return {
       refreshTimer: null,
-      globals: globals,
     };
   },
   methods: {
     loadState: function() {
       this.callAPI("/client/state", "get", null, (artifact) => {
-        globals.Cameras = artifact.Cameras;
-        globals.ServiceName = str(artifact.ServiceName);
-        globals.DefaultImage = str(artifact.DefaultImage);
-        document.title = globals.ServiceName;
+        this.$store.commit("cameras", artifact.Cameras);
+        this.$store.commit("service-name", this.$str(artifact.ServiceName));
+        this.$store.commit("default-image", this.$str(artifact.DefaultImage));
+        this.$store.commit("default-path", this.$str(artifact.DefaultPath));
+        document.title = this.$store.state.ServiceName;
 
-        if (str(this.$route.path) == "/" || str(this.$route.path) == "") {
-          if (globals.Cameras.length > 0) {
-            this.$router.replace(`/camera/${globals.Cameras[0].ID}`);
+        if (this.$str(this.$route.path) == "/" || this.$str(this.$route.path) == "") {
+          if (this.$store.state.Cameras.length > 0) {
+            this.$router.replace(`/camera/${this.$store.state.Cameras[0].ID}`);
           } else {
             this.$router.replace("/nocameras")
           }
         }
 
-        globals.CurrentCamera = { Name: "No camera", LatestHandle: "" };
-        for (let c of globals.Cameras) {
+        this.$store.commit("current-camera", { Name: "No camera", LatestHandle: "" });
+        for (let c of this.$store.state.Cameras) {
           if (c.ID == this.$route.params.camera) {
-            globals.CurrentCamera = c;
+            this.$store.commit("current-camera", c);
+            break;
           }
         }
       }, this.setError);
@@ -259,101 +266,41 @@ const events = Vue.component('state-fetcher', {
 
 const noCameras = Vue.component('noCameras', {
   template: "#no-cameras",
-  props: ["globals"],
 });
 
 const pinMixin = {
   methods: {
     pin: function(handle) {
-      if (str(handle) == "") {
+      if (this.$str(handle) == "") {
         return;
       }
       this.callAPI(`/client/pin/${handle}`, "put", null, (artifact) => {
       }, this.setError);
     },
     imgURI: function(handle) {
-      if (str(handle) == "") {
-        return "/static/no-image.png";
+      if (this.$str(handle) == "") {
+        return this.$store.state.DefaultImage;
       }
       return `/client/image/${handle}`;
     },
     currentImg: function() {
-      return this.imgURI(globals.CurrentCamera.LatestHandle);
+      return this.imgURI(this.$store.state.CurrentCamera.LatestHandle);
     },
   }
 };
 
-const thumbnail = Vue.component('thumbnail', {
-  template: "#thumbnail",
-  props: ["img", "isvideo", "vvdefaults"],
-  computed: {
-    src: function() {
-      if (str(this.img) == "") {
-        return "/static/no-image.png";
-      }
-      return `/client/image/${this.img.Handle}`;
-    },
-  },
-  methods: {
-    display: function() {
-      if (this.img != undefined && this.img.HasVideo) {
-        this.$router.push(`/player/${this.img.Handle}`);
-      }
-    },
-  },
-});
-
 const camera = Vue.component('camera', {
   template: "#camera",
-  mixins: [waitingMixin, errorMixin, pinMixin],
-  props: ["globals", "vvdefaults"],
-  data: function() {
-    return {
-      lightboxUp: false,
-    }
-  },
+  mixins: [apiMixin, errorMixin, pinMixin],
   methods: {
     changeCamera: function(cID) {
       this.$router.push(`/camera/${cID}`);
     },
-    savedImg: function(slot) {
-      return this.slotImg("Pinned", slot).Handle;
-    },
-    motionImg: function(slot) {
-      return this.slotImg("Motion", slot).Handle;
-    },
-    timelapseImg: function(slot) {
-      return this.slotImg("Timelapse", slot).Handle;
-    },
-    play: function(slot) {
-      if (this.globals.CurrentCamera == undefined || this.globals.CurrentCamera["Timelapse"] == undefined) {
-        return;
-      }
-      if (this.globals.CurrentCamera["Timelapse"][slot] != undefined) {
-        let handle = this.globals.CurrentCamera["Timelapse"][slot].Handle;
-        this.$router.push(`/player/${handle}`);
-      } else {
-        return;
-      }
-    },
-    recentImg: function(slot) {
-      return this.slotImg("Recent", slot).Handle;
-    },
     fetchImg: function(typ, slot) {
-      if (this.globals.CurrentCamera == undefined || this.globals.CurrentCamera[typ] == undefined) {
+      if (this.$store.state.CurrentCamera == undefined || this.$store.state.CurrentCamera[typ] == undefined) {
         return undefined;
       }
-      return this.globals.CurrentCamera[typ][slot];
-    },
-    slotImg: function(typ, slot) {
-      if (this.globals.CurrentCamera == undefined || this.globals.CurrentCamera[typ] == undefined) {
-        return "/static/no-image.png";
-      }
-      if (this.globals.CurrentCamera[typ][slot] != undefined) {
-        return this.imgURI(this.globals.CurrentCamera[typ][slot]);
-      } else {
-        return "/static/no-image.png";
-      }
+      return this.$store.state.CurrentCamera[typ][slot];
     },
     settings: function() {
       this.$router.push("/settings");
@@ -361,49 +308,54 @@ const camera = Vue.component('camera', {
   }
 });
 
-const lightbox = Vue.component('lightbox', {
-  template: "#lightbox",
-  mixins: [waitingMixin, errorMixin, pinMixin],
-  props: ["globals"],
+const playerMixin = {
   data: function() {
     return {
-      date: "",
-      time: "",
-      camera: "",
-      isPinned: false,
+      showVidya: false,
+      vsrc: '',
     };
   },
-  mounted: function() {
-    this.callAPI(`/client/imagemeta/${this.$route.params.image}`, "get", null, (artifact) => {
-      this.date = artifact.Date;
-      this.time = artifact.Time;
-      this.camera = artifact.Camera;
-      this.isPinned = artifact.IsPinned ? true : false;
-    });
-  },
   methods: {
-  },
-});
-
-const galleryItem = Vue.component('gallery-item', {
-  template: "#gallery-item",
-  props: ["img", "onsave", "caption", "vvdefaults"],
-  data: function() {
-    return { };
-  },
-  methods: {
-    display: function() {
+    display: function(event) {
       if (this.img != undefined && this.img.HasVideo) {
-        this.$router.push(`/player/${this.img.Handle}`);
+        event.stopPropagation();
+        this.showVidya = true;
+        this.vsrc = `/client/video/${this.img.Handle}`;
       }
     },
+  },
+  computed: {
+    src: function() {
+      if (this.$str(this.img) == "") {
+        return this.$store.state.DefaultImage;
+      }
+      return `/client/image/${this.img.Handle}`;
+    },
+  },
+};
+
+// a thumbnail is a smaller, unadorned instance of an image, intended as, well, a thumbnail
+const thumbnail = Vue.component('thumbnail', {
+  template: "#thumbnail",
+  mixins: [playerMixin],
+  props: ["img"],
+});
+
+// a gallery item is a slightly larger instance of an image with a Save button, for use in a lightbox UI
+const galleryItem = Vue.component('gallery-item', {
+  template: "#gallery-item",
+  mixins: [playerMixin],
+  props: {
+    "img": String,
+    "onsave": Object,
+    "caption": String,
+    "nosave": { type: Boolean, default: false },
   },
 });
 
 const gallery = Vue.component('gallery', {
   template: "#gallery",
-  mixins: [waitingMixin, errorMixin, pinMixin],
-  props: ["globals", "vvdefaults"],
+  mixins: [apiMixin, errorMixin, pinMixin],
   data: function() {
     return {
       results: 0,
@@ -416,14 +368,11 @@ const gallery = Vue.component('gallery', {
   computed: {
     kind: function() {
       return { 
-        "collected": "recent images",
-        "generated": "timelapses",
-        "pinned": "saved images",
-        "motion": "motion-captured images"
+        "collected": "Recent images",
+        "generated": "Timelapses",
+        "pinned": "Saved items",
+        "motion": "Motion-captured images"
       }[this.$route.params.kind];
-    },
-    isPlayable: function() {
-      return this.$route.params.kind == "generated";
     },
     skip: function() {
       return (this.current - 1) * this.per;
@@ -447,42 +396,30 @@ const gallery = Vue.component('gallery', {
       if (value) { this.current = value; }
       this.page();
     },
-    play: function(img) {
-      if (img == undefined || !img.HasVideo) {
-        return;
-      }
-      this.$router.push(`/player/${img.Handle}`);
-    },
   },
 });
-
-const vidya = Vue.component('vidya', {
-  template: "#vidya",
-  mixins: [waitingMixin, errorMixin],
-  props: ["globals"],
-  data: function() {
-    return {
-    };
-  },
-});
-
-const vvdefaults = {
-  inline: false, button:false, title:false, rotatable:false, scalable:false, navbar: false, toolbar: false,
-};
 
 const router = new VueRouter({
   mode: "history",
   base:  "/",
   routes: [
-    { path: "/nocameras", component: noCameras, props: {globals: globals} },
-    { path: "/camera/:camera", component: camera, props: {globals: globals, vvdefaults: vvdefaults} },
-    { path: "/image/:image", component: lightbox, props: {globals: globals} },
-    { path: "/gallery/:camera/:kind", component: gallery, props: {globals: globals, vvdefaults: vvdefaults} },
-    { path: "/settings", component: settings, props: {globals: globals} },
-    { path: "/player/:handle", component: vidya, props: {globals: globals} },
-
-    //{ path: "/users/:email", component: userDetails, props: (route) => ({ globals: globals, email: route.params.email })},
+    { path: "/nocameras", component: noCameras },
+    { path: "/camera/:camera", component: camera },
+    { path: "/gallery/:camera/:kind", component: gallery },
+    { path: "/settings", component: settings },
   ],
 });
 
-new Vue({el: "#panopticon-root", router: router});
+Vue.prototype.$vvdefaults = {
+  inline: false, button:false, title:false, rotatable:false, scalable:false, navbar: false, toolbar: false,
+};
+
+// helper function, because lolJavaScript
+Vue.prototype.$str = function(s) {
+  if ((s !== undefined) && (s !== null) && (s !== "")) {
+    return s;
+  }
+  return "";
+}
+
+new Vue({el: "#panopticon-root", store: globals, router: router});

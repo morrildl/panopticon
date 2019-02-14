@@ -37,6 +37,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.17.1/axios.js" defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/2.5.16/vue.js" defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/vue-router/3.0.1/vue-router.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/vuex/3.0.1/vuex.js" defer></script>
   <script src="https://unpkg.com/buefy/dist/buefy.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/viewerjs/1.3.2/viewer.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/v-viewer@1.3.2/dist/v-viewer.min.js"></script>
@@ -69,15 +70,6 @@
 </div>
 <!-- end overlay indicating an error occurred -->
 
-<div id="vidya" style="display: none;">
-  <div class="container">
-    <video width="1920" height="1080" autoplay="true" :src="`/client/video/${$route.params.handle}?${(new Date()).getTime()}`" type="video/webm">
-    <!-- <video width="1920" height="1080" autoplay="true" src="/static/test.webm">-->
-    <!-- <source  type="video/avi"></source>-->
-    </video>
-  </div>
-</div>
-
 <!-- admin form to edit system settings -->
 <div id="settings" style="display: none;">
   <div class="columns">
@@ -86,7 +78,7 @@
       <div class="columns">
         <!-- non-mobile columns here, so that user list stacks below settings on phones -->
         <div class="column is-6">
-          <h1>{{globals.ServiceName}} Settings</h1>
+          <h1>{{$store.state.ServiceName}} Settings</h1>
           <div class="field">
             <div class="label">Name of this VPN service</div>
             <div class="control has-icons-left">
@@ -148,9 +140,14 @@ sententio.us"></textarea>
 <!-- end state fetcher -->
 
 <div id="thumbnail" style="display: none;">
-  <article v-viewer="vvdefaults">
-    <figure class="image is-16x9"><img :src="src" @click="display()"></img></figure>
-  </article>
+  <div>
+    <article v-viewer="$vvdefaults">
+      <figure class="image is-16x9"><img :src="src" @click="display"></img></figure>
+    </article>
+    <b-modal :active.sync="showVidya" :can-cancel="['escape', 'outside']">
+        <video width="1920" height="1080" autoplay="true" :src="vsrc" type="video/webm" controls>
+    </b-modal>
+  </div>
 </div>
 
 <!-- main camera view -->
@@ -169,19 +166,19 @@ sententio.us"></textarea>
                   <div class="dropdown is-hoverable is-large">
                     <div class="dropdown-trigger">
                       <span class="picker" aria-haspopup="true" aria-controls="dropdown-menu">
-                        <span>{{ globals.CurrentCamera.Name }}</span>
+                        <span>{{ $store.state.CurrentCamera.Name }}</span>
                         <span class="icon"><i class="fa fa-angle-double-down"></i></span>
                       </span>
                     </div>
                     <div class="dropdown-menu shadowy" id="dropdown-menu" role="menu">
                       <div class="dropdown-content">
-                        <a v-for="c in globals.Cameras" class="dropdown-item is-small" :class="{'is-active': $route.params.camera == c.ID}"
+                        <a v-for="c in $store.state.Cameras" class="dropdown-item is-small" :class="{'is-active': $route.params.camera == c.ID}"
                           @click="changeCamera(c.ID)">{{ c.Name }}</a>
                       </div>
                     </div>
                   </div>
                 </div>
-                <div class="column" v-if="globals.CurrentCamera.Sleeping">
+                <div class="column" v-if="$store.state.CurrentCamera.Sleeping">
                   <span class="is-small is-dark is-outlined is-static">
                     <b-icon icon="weather-night is-small" style="vertical-align: middle;"></b-icon>
                     <span>Sleeping</span>
@@ -203,38 +200,38 @@ sententio.us"></textarea>
                 <div class="column is-gapless">
                   <div class="columns is-gapless" style="margin-bottom: 0.25em">
                     <div class="column is-gapless is-8">
-                      <span v-if="globals.CurrentCamera.LatestTime != ''">
-                        {{ globals.CurrentCamera.LatestTime }} • {{ globals.CurrentCamera.LatestDate }} • 
-                        <a class="is-small perpetual-link" :href="`/gallery/${globals.CurrentCamera.ID}/collected`">See all</a>
+                      <span v-if="$store.state.CurrentCamera.LatestTime != ''">
+                        {{ $store.state.CurrentCamera.LatestTime }} • {{ $store.state.CurrentCamera.LatestDate }} • 
+                        <a class="is-small perpetual-link" :href="`/gallery/${$store.state.CurrentCamera.ID}/collected`">See all</a>
                       </span>
-                      <h2 v-if="globals.CurrentCamera.LatestTime == ''">No images found</h2>
+                      <h2 v-if="$store.state.CurrentCamera.LatestTime == ''">No images found</h2>
                     </div>
                     <div class="column is-gapless is-4 has-text-right">
-                      <a class="button is-info is-small" @click="pin(globals.CurrentCamera.LatestHandle)">
+                      <a class="button is-info is-small" @click="pin($store.state.CurrentCamera.LatestHandle)">
                         <b-icon icon="pin" size="is-small"></b-icon>
                         <span>Save</span>
                       </a>
                     </div>
                   </div>
-                  <figure class="image is-16by9" v-viewer="vvdefaults"><img class="image is-16x9" :src="currentImg()"></img></figure>
+                  <figure class="image is-16by9" v-viewer="$vvdefaults"><img class="image is-16x9" :src="currentImg()"></img></figure>
                   <div class="columns" style="margin-top: 0.25em;">
                     <div class="column">
-                      <thumbnail :img="fetchImg('Recent', 0)" :vvdefaults="vvdefaults"></thumbnail>
+                      <thumbnail :img="fetchImg('Recent', 0)"></thumbnail>
                     </div>
                     <div class="column">
-                      <thumbnail :img="fetchImg('Recent', 1)" :vvdefaults="vvdefaults"></thumbnail>
+                      <thumbnail :img="fetchImg('Recent', 1)"></thumbnail>
                     </div>
                     <div class="column">
-                      <thumbnail :img="fetchImg('Recent', 2)" :vvdefaults="vvdefaults"></thumbnail>
+                      <thumbnail :img="fetchImg('Recent', 2)"></thumbnail>
                     </div>
                     <div class="column">
-                      <thumbnail :img="fetchImg('Recent', 3)" :vvdefaults="vvdefaults"></thumbnail>
+                      <thumbnail :img="fetchImg('Recent', 3)"></thumbnail>
                     </div>
                     <div class="column">
-                      <thumbnail :img="fetchImg('Recent', 4)" :vvdefaults="vvdefaults"></thumbnail>
+                      <thumbnail :img="fetchImg('Recent', 4)"></thumbnail>
                     </div>
                     <div class="column">
-                      <thumbnail :img="fetchImg('Recent', 5)" :vvdefaults="vvdefaults"></thumbnail>
+                      <thumbnail :img="fetchImg('Recent', 5)"></thumbnail>
                     </div>
                   </div>
                 </div>
@@ -246,19 +243,19 @@ sententio.us"></textarea>
 
             <!-- pinned block tile -->
             <div class="tile is-child box">
-              <h2><a :href="`/gallery/${globals.CurrentCamera.ID}/pinned`">Saved</a></h2>
+              <h2><a :href="`/gallery/${$store.state.CurrentCamera.ID}/pinned`">Saved</a></h2>
               <div class="columns is-gapless is-multiline">
                 <div class="column is-gapless is-half">
-                  <thumbnail :img="fetchImg('Pinned', 0)" :vvdefaults="vvdefaults"></thumbnail>
+                  <thumbnail :img="fetchImg('Pinned', 0)"></thumbnail>
                 </div>
                 <div class="column is-gapless is-half">
-                  <thumbnail :img="fetchImg('Pinned', 1)" :vvdefaults="vvdefaults"></thumbnail>
+                  <thumbnail :img="fetchImg('Pinned', 1)"></thumbnail>
                 </div>
                 <div class="column is-gapless is-half">
-                  <thumbnail :img="fetchImg('Pinned', 2)" :vvdefaults="vvdefaults"></thumbnail>
+                  <thumbnail :img="fetchImg('Pinned', 2)"></thumbnail>
                 </div>
                 <div class="column is-gapless is-half">
-                  <thumbnail :img="fetchImg('Pinned', 3)" :vvdefaults="vvdefaults"></thumbnail>
+                  <thumbnail :img="fetchImg('Pinned', 3)"></thumbnail>
                 </div>
               </div>
             </div>
@@ -266,19 +263,19 @@ sententio.us"></textarea>
 
             <!-- generated block tile -->
             <div class="tile is-child box">
-              <h2><a :href="`/gallery/${globals.CurrentCamera.ID}/generated`">Timelapses</a></h2>
+              <h2><a :href="`/gallery/${$store.state.CurrentCamera.ID}/generated`">Timelapses</a></h2>
               <div class="columns is-gapless is-multiline">
                 <div class="column is-gapless is-half">
-                  <thumbnail :img="fetchImg('Timelapse', 0)" :vvdefaults="vvdefaults"></thumbnail>
+                  <thumbnail :img="fetchImg('Timelapse', 0)"></thumbnail>
                 </div>
                 <div class="column is-gapless is-half">
-                  <thumbnail :img="fetchImg('Timelapse', 1)" :vvdefaults="vvdefaults"></thumbnail>
+                  <thumbnail :img="fetchImg('Timelapse', 1)"></thumbnail>
                 </div>
                 <div class="column is-gapless is-half">
-                  <thumbnail :img="fetchImg('Timelapse', 2)" :vvdefaults="vvdefaults"></thumbnail>
+                  <thumbnail :img="fetchImg('Timelapse', 2)"></thumbnail>
                 </div>
                 <div class="column is-gapless is-half">
-                  <thumbnail :img="fetchImg('Timelapse', 3)" :vvdefaults="vvdefaults"></thumbnail>
+                  <thumbnail :img="fetchImg('Timelapse', 3)"></thumbnail>
                 </div>
               </div>
             </div>
@@ -286,20 +283,19 @@ sententio.us"></textarea>
 
             <!-- motion block tile -->
             <div class="tile is-child box">
-              <h2><a :href="`/gallery/${globals.CurrentCamera.ID}/motion`">Motion</a></h2>
+              <h2><a :href="`/gallery/${$store.state.CurrentCamera.ID}/motion`">Motion</a></h2>
               <div class="columns is-gapless is-multiline">
                 <div class="column is-gapless is-half">
-                  <thumbnail :img="fetchImg('Motion', 0)" :vvdefaults="vvdefaults"></thumbnail>
+                  <thumbnail :img="fetchImg('Motion', 0)"></thumbnail>
                 </div>
                 <div class="column is-gapless is-half">
-                  <thumbnail :img="fetchImg('Motion', 1)" :vvdefaults="vvdefaults"></thumbnail>
+                  <thumbnail :img="fetchImg('Motion', 1)"></thumbnail>
                 </div>
                 <div class="column is-gapless is-half">
-                  <thumbnail :img="fetchImg('Motion', 2)" :vvdefaults="vvdefaults"></thumbnail>
+                  <thumbnail :img="fetchImg('Motion', 2)"></thumbnail>
                 </div>
                 <div class="column is-gapless is-half">
-                  <thumbnail :img="fetchImg('Motion', 3)" :vvdefaults="vvdefaults"></thumbnail>
-                </div>
+                  <thumbnail :img="fetchImg('Motion', 3)"></thumbnail>
                 </div>
               </div>
             </div>
@@ -316,14 +312,17 @@ sententio.us"></textarea>
 <!-- gallery image tile with save button -->
 <div id="gallery-item" style="display:none;">
   <div>
-    <figure class="image is-16by9 shadowy" v-viewer="vvdefaults">
-      <img class="image is-16x9" :src="`/client/image/${img.Handle}`" @click="display(img.Handle)"></img>
-      <a class="button is-info is-small" @click="onsave(img.Handle)" style="position: absolute; top: -0.5em; right: -0.5em;">
+    <figure class="image is-16by9 shadowy" v-viewer="$vvdefaults">
+      <img class="image is-16x9" :src="src" @click="display"></img>
+      <a v-if="!nosave" class="button is-info is-small" @click="onsave(img.Handle)" style="position: absolute; top: -0.5em; right: -0.5em;">
         <b-icon icon="pin" size="is-small"></b-icon>
         <span>Save</span>
       </a></span>
     </figure>
     <div class="is-small">{{ caption }}</div>
+    <b-modal :active.sync="showVidya" :can-cancel="['escape', 'outside']">
+        <video width="1920" height="1080" autoplay="true" :src="vsrc" type="video/webm" controls>
+    </b-modal>
   </div>
 </div>
 <!-- end gallery image tile with save button -->
@@ -347,7 +346,7 @@ sententio.us"></textarea>
         <div class="columns is-multiline">
           <div class="column is-12" v-if="imageList.length < 1">No {{ kind }} for {{ camera }}</div>
           <div class="column is-4" v-for="img in imageList">
-            <gallery-item :img="img" :onsave="pin" :caption="`${img.Time} • ${img.Date}`" :vvdefaults="vvdefaults"></gallery-item>
+            <gallery-item :img="img" :onsave="pin" :caption="`${img.Time} • ${img.Date}`" :nosave="$route.params.kind == 'pinned'"></gallery-item>
           </div>
         </div>
       </div>

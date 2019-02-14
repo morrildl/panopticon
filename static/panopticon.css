@@ -177,3 +177,6 @@ a.dropdown-item:hover {
   border-color: var(--sienna);
 }
 
+.modal-content {
+  width: auto !important;
+}
