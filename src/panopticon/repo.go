@@ -368,7 +368,7 @@ func (repo *RepositoryConfig) GenerateTimelapse(date time.Time, camera *Camera, 
 			log.Error(TAG, fmt.Sprintf("failed to remove generated '%s'", webm), err)
 		}
 	}()
-	log.Debug(TAG, "started mencoder with args", args)
+	log.Debug(TAG, fmt.Sprintf("started mencoder for '%s' with args", camera.ID), args)
 	if err := cmd.Wait(); err != nil {
 		panic(err)
 	}
@@ -399,11 +399,21 @@ func (repo *RepositoryConfig) startTimelapser(hour int, min int) {
 		for _, camera := range System.Cameras() {
 			today := time.Now().Local().Add(-24 * time.Hour) // do yesterday's timelapse
 			go func(camera *Camera) {
+				defer func() {
+					if r := recover(); r != nil {
+						log.Error("timelapse", fmt.Sprintf("error generating timelapse for '%s'", camera.ID), r)
+					}
+				}()
 				if camera.Timelapse == MediaCollected || camera.Timelapse == "both" {
 					repo.GenerateTimelapse(today, camera, MediaCollected)
 				}
 			}(camera)
 			go func(camera *Camera) {
+				defer func() {
+					if r := recover(); r != nil {
+						log.Error("timelapse", fmt.Sprintf("error generating timelapse for '%s'", camera.ID), r)
+					}
+				}()
 				if camera.Timelapse == MediaMotion || camera.Timelapse == "both" {
 					repo.GenerateTimelapse(today, camera, MediaMotion)
 				}
