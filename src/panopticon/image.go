@@ -5,7 +5,11 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"image"
+	"image/color"
+	"image/jpeg"
 	"io/ioutil"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -39,6 +43,11 @@ func CreateImage(source string, kind MediaKind, b []byte) *Image {
 	potato.Write(tb)
 	potato.Write([]byte(dir))
 	handle := hex.EncodeToString(potato.Sum(nil)[:32])
+
+	cam := System.GetCamera(source)
+	if cam.Dewarp {
+		b = dewarpFisheye(b)
+	}
 
 	// verify that the file doesn't somehow already exist
 	diskPath := Repository.canonFile(filepath.Join(dir, fmt.Sprintf("%s.%s", handle, "jpg")))
@@ -261,4 +270,90 @@ func (img *Image) PrettyTime() string {
 // PrettyDate returns a cute human-readable version of of the full date of `img.Timestamp`.
 func (img *Image) PrettyDate() string {
 	return img.Timestamp.Format("Monday, 2 January, 2006")
+}
+
+// dewarpFisheye implements distortion correction for a fisheye lens. This is
+// currently hardcoded with parameter values suitable for the Wyze camera v2,
+// but could be adapted. It is based on
+// http://www.tannerhelland.com/4743/simple-algorithm-correcting-lens-distortion/
+// but with added subpixel interpolation.
+func dewarpFisheye(b []byte) []byte {
+	img, _, err := image.Decode(bytes.NewReader(b))
+	if err != nil {
+		panic(err)
+	}
+
+	d := image.NewRGBA(img.Bounds())
+	width := d.Bounds().Size().X
+	height := d.Bounds().Size().Y
+	halfY := height / 2
+	halfX := width / 2
+
+	strength := 2.35
+	corrRad := math.Sqrt(float64(width*width+height*height)) / strength
+	EPSILON := 0.0000000001
+	zoom := 1.00
+
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			absX := float64(x - halfX)
+			absY := float64(y - halfY)
+
+			dist := math.Sqrt(absX*absX + absY*absY)
+			r := dist / corrRad
+			theta := 1.
+			if r > EPSILON {
+				theta = math.Atan(r) / r
+			}
+
+			srcX := float64(halfX) + theta*absX*zoom
+			srcY := float64(halfY) + theta*absY*zoom
+
+			// (srcX, srcY) will point to a place between pixels; interpolate its color value by weighting its neighbors'
+			loX := int(srcX)
+			hiX := loX + 1
+			dX := srcX - float64(loX)
+
+			loY := int(srcY)
+			hiY := loY + 1
+			dY := srcY - float64(loY)
+
+			Ri, Gi, Bi, Ai := img.At(loX, loY).RGBA()
+			R := float64(Ri) * (1 - dX) * (1 - dY)
+			G := float64(Gi) * (1 - dX) * (1 - dY)
+			B := float64(Bi) * (1 - dX) * (1 - dY)
+			A := float64(Ai) * (1 - dX) * (1 - dY)
+
+			Ri, Gi, Bi, Ai = img.At(hiX, loY).RGBA()
+			R += float64(Ri) * dX * (1 - dY)
+			G += float64(Gi) * dX * (1 - dY)
+			B += float64(Bi) * dX * (1 - dY)
+			A += float64(Ai) * dX * (1 - dY)
+
+			Ri, Gi, Bi, Ai = img.At(loX, hiY).RGBA()
+			R += float64(Ri) * (1 - dX) * dY
+			G += float64(Gi) * (1 - dX) * dY
+			B += float64(Bi) * (1 - dX) * dY
+			A += float64(Ai) * (1 - dX) * dY
+
+			Ri, Gi, Bi, Ai = img.At(hiX, hiY).RGBA()
+			R += float64(Ri) * dX * dY
+			G += float64(Gi) * dX * dY
+			B += float64(Bi) * dX * dY
+			A += float64(Ai) * dX * dY
+
+			R16 := uint16(math.Round(R))
+			G16 := uint16(math.Round(G))
+			B16 := uint16(math.Round(B))
+			A16 := uint16(math.Round(A))
+
+			c := color.RGBA64{R: R16, G: G16, B: B16, A: A16}
+
+			d.Set(x, y, c)
+		}
+	}
+
+	var buf bytes.Buffer
+	jpeg.Encode(&buf, d, nil)
+	return buf.Bytes()
 }
