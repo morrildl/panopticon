@@ -43,6 +43,11 @@ var schemaStatements = [][]string{
 		"alter table Cameras add Dewarp int not null default 0",
 		"update Version set Version=5",
 	},
+	[]string{
+		"alter table Cameras add Private int not null default 1",
+		"alter table Users add Privileged int not null default 0",
+		"update Version set Version=6",
+	},
 }
 
 func (sys *SystemConfig) getDB() *sql.DB {

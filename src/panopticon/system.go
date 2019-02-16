@@ -29,12 +29,13 @@ type Camera struct {
 	AspectRatio string
 	Address     string
 	Diurnal     bool
+	Dewarp      bool
 	Timelapse   MediaKind
 	StillURL    string
 	RTSPURL     string
 	Latitude    float64
 	Longitude   float64
-	Dewarp      bool
+	Private     bool
 }
 
 // Store records a new Camera to the database, or updates it if it already exists.
@@ -43,11 +44,11 @@ func (c *Camera) Store() {
 	defer cxn.Close()
 
 	q := `insert into Cameras 
-						(ID, Name, AspectRatio, Address, Diurnal, Dewarp, Latitude, Longitude, Timelapse, ImageURL, RTSPURL) 
-						values (?, ?, ?, ?, ?, ?, ?, ?, ?)
+						(ID, Name, AspectRatio, Address, Diurnal, Dewarp, Latitude, Longitude, Timelapse, ImageURL, RTSPURL, Private) 
+						values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 						on conflict(ID) do update set
 							Name=excluded.Name, AspectRatio=excluded.AspectRatio, Address=excluded.Address, Diurnal=excluded.Diurnal, Dewarp=excluded.Dewarp, 
-							Latitude=excluded.Latitude, Longitude=excluded.Longitude, Timelapse=excluded.Timelapse, ImageURL=excluded.ImageURL, RTSPURL=excluded.RTSPURL`
+							Latitude=excluded.Latitude, Longitude=excluded.Longitude, Timelapse=excluded.Timelapse, ImageURL=excluded.ImageURL, RTSPURL=excluded.RTSPURL, Private=excluded.Private`
 	diurnal := 0
 	if c.Diurnal {
 		diurnal = 1
@@ -56,7 +57,11 @@ func (c *Camera) Store() {
 	if c.Dewarp {
 		dewarp = 1
 	}
-	if _, err := cxn.Exec(q, c.ID, c.Name, c.Address, diurnal, dewarp, c.Timelapse, c.StillURL, c.RTSPURL); err != nil {
+	private := 0
+	if c.Private {
+		private = 1
+	}
+	if _, err := cxn.Exec(q, c.ID, c.Name, c.Address, diurnal, dewarp, c.Timelapse, c.StillURL, c.RTSPURL, private); err != nil {
 		panic(err)
 	}
 }
@@ -120,8 +125,9 @@ func (c *Camera) IsDark() bool {
 // User represents an email (specifically, Google/Gmail) account that is permitted to access this
 // system via OAuth2. It also records a meatspace name for that user.
 type User struct {
-	Email string
-	Name  string
+	Email      string
+	Name       string
+	Privileged bool
 }
 
 // Store records a new User to the database, or updates it if it already exists.
@@ -129,7 +135,7 @@ func (u *User) Store() {
 	cxn := System.getDB()
 	defer cxn.Close()
 
-	if _, err := cxn.Exec("insert into Users (Email, Name) values (?, ?) on conflict(email) do update set Name=excluded.Name", u.Email, u.Name); err != nil {
+	if _, err := cxn.Exec("insert into Users (Email, Name, Privileged) values (?, ?, ?) on conflict(email) do update set Name=excluded.Name, Privileged=excluded.Privileged", u.Email, u.Name); err != nil {
 		panic(err)
 	}
 }
@@ -141,6 +147,32 @@ func (u *User) Delete() {
 
 	if _, err := cxn.Exec("delete from Users where Email=?", u.Email); err != nil {
 		panic(err)
+	}
+}
+
+// Users returns a list of all User rows currently configured. If there are no users, returns a nil
+// slice.
+func (sys *SystemConfig) Users() []*User {
+	cxn := sys.getDB()
+	defer cxn.Close()
+
+	if rows, err := cxn.Query("select Email, Name, Privileged from Users"); err != nil {
+		panic(err)
+	} else {
+		defer rows.Close()
+
+		ret := []*User{}
+		for rows.Next() {
+			u := &User{}
+			rows.Scan(&u.Email, &u.Name, &u.Privileged)
+			if u.Email == "" || u.Name == "" {
+				panic(fmt.Errorf("user entry loaded with null fields '%s'/'%s'", u.Email, u.Name))
+			}
+			ret = append(ret, u)
+		}
+
+		sort.Slice(ret, func(i, j int) bool { return ret[i].Name < ret[j].Name })
+		return ret
 	}
 }
 
@@ -232,7 +264,7 @@ func (sys *SystemConfig) Cameras() []*Camera {
 	cxn := sys.getDB()
 	defer cxn.Close()
 
-	if rows, err := cxn.Query("select Name, ID, AspectRatio, Address, Diurnal, Dewarp, Latitude, Longitude, Timelapse, ImageURL, RTSPURL from Cameras"); err != nil {
+	if rows, err := cxn.Query("select Name, ID, AspectRatio, Address, Diurnal, Dewarp, Latitude, Longitude, Timelapse, ImageURL, RTSPURL, Private from Cameras"); err != nil {
 		panic(err)
 	} else {
 		defer rows.Close()
@@ -240,37 +272,11 @@ func (sys *SystemConfig) Cameras() []*Camera {
 		ret := []*Camera{}
 		for rows.Next() {
 			c := &Camera{}
-			rows.Scan(&c.Name, &c.ID, &c.AspectRatio, &c.Address, &c.Diurnal, &c.Dewarp, &c.Latitude, &c.Longitude, &c.Timelapse, &c.StillURL, &c.RTSPURL)
+			rows.Scan(&c.Name, &c.ID, &c.AspectRatio, &c.Address, &c.Diurnal, &c.Dewarp, &c.Latitude, &c.Longitude, &c.Timelapse, &c.StillURL, &c.RTSPURL, &c.Private)
 			if c.Name == "" || c.ID == "" {
 				panic(fmt.Errorf("camera entry stored with null fields '%s'/'%s'", c.ID, c.Name))
 			}
 			ret = append(ret, c)
-		}
-
-		sort.Slice(ret, func(i, j int) bool { return ret[i].Name < ret[j].Name })
-		return ret
-	}
-}
-
-// Users returns a list of all User rows currently configured. If there are no users, returns a nil
-// slice.
-func (sys *SystemConfig) Users() []*User {
-	cxn := sys.getDB()
-	defer cxn.Close()
-
-	if rows, err := cxn.Query("select Email, Name from Users"); err != nil {
-		panic(err)
-	} else {
-		defer rows.Close()
-
-		ret := []*User{}
-		for rows.Next() {
-			u := &User{}
-			rows.Scan(&u.Email, &u.Name)
-			if u.Email == "" || u.Name == "" {
-				panic(fmt.Errorf("user entry stored with null fields '%s'/'%s'", u.Email, u.Name))
-			}
-			ret = append(ret, u)
 		}
 
 		sort.Slice(ret, func(i, j int) bool { return ret[i].Name < ret[j].Name })
@@ -284,10 +290,10 @@ func (sys *SystemConfig) GetCamera(ID string) *Camera {
 	cxn := sys.getDB()
 	defer cxn.Close()
 
-	row := cxn.QueryRow("select Name, ID, AspectRatio, Address, Diurnal, Dewarp, Latitude, Longitude, Timelapse, ImageURL, RTSPURL from Cameras where ID=?", ID)
+	row := cxn.QueryRow("select Name, ID, AspectRatio, Address, Diurnal, Dewarp, Latitude, Longitude, Timelapse, ImageURL, RTSPURL, Private from Cameras where ID=?", ID)
 
 	c := &Camera{}
-	err := row.Scan(&c.Name, &c.ID, &c.AspectRatio, &c.Address, &c.Diurnal, &c.Dewarp, &c.Latitude, &c.Longitude, &c.Timelapse, &c.StillURL, &c.RTSPURL)
+	err := row.Scan(&c.Name, &c.ID, &c.AspectRatio, &c.Address, &c.Diurnal, &c.Dewarp, &c.Latitude, &c.Longitude, &c.Timelapse, &c.StillURL, &c.RTSPURL, &c.Private)
 	if err == sql.ErrNoRows {
 		return nil
 	}
@@ -303,10 +309,10 @@ func (sys *SystemConfig) GetUser(email string) *User {
 	cxn := sys.getDB()
 	defer cxn.Close()
 
-	row := cxn.QueryRow("select Email, Name from Users where Email=?", email)
+	row := cxn.QueryRow("select Email, Name, Privileged from Users where Email=?", email)
 
 	u := &User{}
-	err := row.Scan(&u.Email, &u.Name)
+	err := row.Scan(&u.Email, &u.Name, &u.Privileged)
 	if err == sql.ErrNoRows {
 		return nil
 	}

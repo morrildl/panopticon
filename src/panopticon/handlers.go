@@ -16,9 +16,21 @@ import (
 	"panopticon/messages"
 
 	"playground/httputil"
+	"playground/log"
+	"playground/session"
 
 	"github.com/bradfitz/latlong"
 )
+
+// userFor looks up the User instance, primarily for its Privileged flag for use
+// in perms checks. This can return nil in principle, but we assume we're called
+// with the emailInspector sentinel.
+func userFor(req *http.Request) *User {
+	ssn := session.GetSession(req)
+	log.Debug("userFor", "session", ssn)
+	log.Debug("userFor", "session email", ssn.Email)
+	return System.GetUser(session.GetSession(req).Email)
+}
 
 // ProvisionHandler handles /provision
 func ProvisionHandler(writer http.ResponseWriter, req *http.Request) {
@@ -37,10 +49,15 @@ func StateHandler(writer http.ResponseWriter, req *http.Request) {
 
 	// no camera specified, load them all
 	cameras := System.Cameras()
+	u := userFor(req)
 
 	now := time.Now()
 	res.Cameras = []*messages.Camera{}
 	for _, c := range cameras {
+		if c.Private && !u.Privileged {
+			continue
+		}
+
 		loc := time.UTC
 		if tz := latlong.LookupZoneName(c.Latitude, c.Longitude); tz != "" {
 			if computed, err := time.LoadLocation(tz); err == nil {
@@ -120,8 +137,10 @@ func ImageMetaHandler(writer http.ResponseWriter, req *http.Request) {
 	img := Repository.Locate(imgID)
 	notFound.Assert(img != nil, "unknown image '%s'", imgID)
 
+	u := userFor(req)
 	camera := System.GetCamera(img.Source)
 	ise.Assert(camera != nil, "image '%s' references unknown camera '%s'", img.Handle, img.Source)
+	notFound.Assert(!camera.Private || u.Privileged, "attempt by '%s' to access private '%s'", u.Email, camera.ID)
 
 	t := img.Timestamp
 	loc := camera.Location()
@@ -153,8 +172,10 @@ func ImageListHandler(writer http.ResponseWriter, req *http.Request) {
 	kind := Repository.segmentToMediaKind(kindstr)
 	badReq.Assert(kind != MediaUnknown, "request for invalid kind '%s'", kindstr)
 
+	u := userFor(req)
 	cam := System.GetCamera(camera)
 	notFound.Assert(cam != nil, "request for unknown camera '%s'", camera)
+	notFound.Assert(!cam.Private || u.Privileged, "attempt by '%s' to access private '%s'", u.Email, cam.ID)
 
 	imgs := Repository.ListKind(camera, kind)
 
@@ -224,17 +245,21 @@ func ImageHandler(writer http.ResponseWriter, req *http.Request) {
 			panic(err)
 		}
 	} else {
-		handle := Repository.Locate(imgID)
-		notFound.Assert(handle != nil, "failed to locate a requested image '%s'", imgID)
+		img := Repository.Locate(imgID)
+		notFound.Assert(img != nil, "failed to locate a requested image '%s'", imgID)
+
+		u := userFor(req)
+		cam := System.GetCamera(img.Source)
+		notFound.Assert(!cam.Private || u.Privileged, "attempt by '%s' to access private '%s'", u.Email, cam.ID)
 
 		mode := httputil.ExtractSegment(req.URL.Path, 2)
-		badReq.Assert(mode != "video" || handle.HasVideo, "attempt to access video for non-video '%s'", handle.Handle, *handle)
+		badReq.Assert(mode != "video" || img.HasVideo, "attempt to access video for non-video '%s'", img.Handle, *img)
 
 		if mode == "video" {
 			ctype = "video/x-msvideo"
-			handle.RetrieveVideo(&buf)
+			img.RetrieveVideo(&buf)
 		} else {
-			handle.Retrieve(&buf)
+			img.Retrieve(&buf)
 		}
 	}
 
@@ -253,6 +278,9 @@ func PinHandler(writer http.ResponseWriter, req *http.Request) {
 
 	img := Repository.Locate(imgID)
 	notFound.Assert(img != nil, "unknown image '%s'", imgID)
+	cam := System.GetCamera(img.Source)
+	u := userFor(req)
+	notFound.Assert(!cam.Private || u.Privileged, "attempt by '%s' to access private '%s'", u.Email, cam.ID)
 
 	pinned := img.Pin()
 	ise.Assert(pinned != nil, "nil result from pin operation on '%s'", imgID)
