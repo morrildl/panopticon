@@ -30,10 +30,6 @@ import (
 	sunrise "github.com/nathan-osman/go-sunrise"
 )
 
-// TimelapseKind represents the different scenarios for which this system can generate a timelapse
-// of images.
-type TimelapseKind string
-
 // Camera represents a device permitted to upload images to this service. It also stores metadata
 // about that camera, such as whether it's daylight-only, whether timelapses should be generated for
 // it, etc.
@@ -107,8 +103,8 @@ func (c *Camera) LocalDaylight(on time.Time) (now time.Time, rise time.Time, set
 
 	rise, set = sunrise.SunriseSunset(c.Latitude, c.Longitude, now.Year(), now.Month(), now.Day())
 
-	rise = rise.In(loc)
-	set = set.In(loc)
+	rise = rise.Add(-35 * time.Minute).In(loc)
+	set = set.Add(45 * time.Minute).In(loc)
 
 	return
 }

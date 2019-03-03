@@ -47,6 +47,11 @@ type Image struct {
 // CreateImage stores the bytes to the disk according to config & convention, and returns a handle to the
 // resulting image.
 func CreateImage(source string, kind MediaKind, b []byte) *Image {
+	cam := System.GetCamera(source)
+	if cam.Dewarp && (kind == MediaCollected || kind == MediaMotion) {
+		b = dewarpFisheye(b)
+	}
+
 	dir := Repository.dirFor(source, kind)
 
 	// compute a hash of the file based on its contents, disk location, and current time
@@ -57,11 +62,6 @@ func CreateImage(source string, kind MediaKind, b []byte) *Image {
 	potato.Write(tb)
 	potato.Write([]byte(dir))
 	handle := hex.EncodeToString(potato.Sum(nil)[:32])
-
-	cam := System.GetCamera(source)
-	if cam.Dewarp {
-		b = dewarpFisheye(b)
-	}
 
 	// verify that the file doesn't somehow already exist
 	diskPath := Repository.canonFile(filepath.Join(dir, fmt.Sprintf("%s.%s", handle, "jpg")))
