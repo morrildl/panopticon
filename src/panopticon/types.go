@@ -34,14 +34,15 @@ type MediaKind string
 const (
 	MediaCollected MediaKind = "collected"
 	MediaMotion              = "motion"
-	MediaPinned              = "pinned"
+	MediaSaved               = "saved"
 	MediaGenerated           = "generated"
+	MediaData                = "data"
 	MediaUnknown             = ""
 )
 
 // AllKinds is simply a list of all legitimate MediaKind values, intended for use in `range`
-// statements, etc.
-var AllKinds = []MediaKind{MediaCollected, MediaMotion, MediaPinned, MediaGenerated}
+// statements, etc. Intentionally excludes MediaData, which is where actual bits are stored.
+var AllKinds = []MediaKind{MediaCollected, MediaMotion, MediaSaved, MediaGenerated}
 
 // AspectRatio enumerates all acceptable aspect ratios for camera images. It's used to format the UI properly for a given camera.
 type AspectRatio string

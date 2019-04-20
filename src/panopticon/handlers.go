@@ -117,9 +117,9 @@ func StateHandler(writer http.ResponseWriter, req *http.Request) {
 			mc.Recent = append(mc.Recent, &messages.ImageMeta{Handle: img.Handle, HasVideo: img.HasVideo})
 		}
 
-		mc.Pinned = []*messages.ImageMeta{}
+		mc.Saved = []*messages.ImageMeta{}
 		for _, img := range pinned {
-			mc.Pinned = append(mc.Pinned, &messages.ImageMeta{Handle: img.Handle, HasVideo: img.HasVideo})
+			mc.Saved = append(mc.Saved, &messages.ImageMeta{Handle: img.Handle, HasVideo: img.HasVideo})
 		}
 
 		mc.Timelapse = []*messages.ImageMeta{}
@@ -280,11 +280,10 @@ func ImageHandler(writer http.ResponseWriter, req *http.Request) {
 	httputil.Send(writer, http.StatusOK, ctype, buf.Bytes())
 }
 
-// PinHandler handles /client/pin/
-func PinHandler(writer http.ResponseWriter, req *http.Request) {
-	TAG := "panopticon.PinHandler"
+// SaveHandler handles /client/save/
+func SaveHandler(writer http.ResponseWriter, req *http.Request) {
+	TAG := "panopticon.SaveHandler"
 	badReq := httputil.NewJSONAssertable(writer, TAG, http.StatusBadRequest, clientError)
-	ise := httputil.NewJSONAssertable(writer, TAG, http.StatusInternalServerError, internalError)
 	notFound := httputil.NewJSONAssertable(writer, TAG, http.StatusNotFound, noSuchCamera)
 
 	imgID := httputil.ExtractSegment(req.URL.Path, 3)
@@ -296,10 +295,12 @@ func PinHandler(writer http.ResponseWriter, req *http.Request) {
 	u := userFor(req)
 	notFound.Assert(!cam.Private || u.Privileged, "attempt by '%s' to access private '%s'", u.Email, cam.ID)
 
-	pinned := img.Pin()
-	ise.Assert(pinned != nil, "nil result from pin operation on '%s'", imgID)
+	alreadyPinned := !img.Pin(MediaSaved)
 
-	httputil.SendJSON(writer, http.StatusAccepted, &APIResponse{Artifact: struct{ NewHandle string }{pinned.Handle}})
+	httputil.SendJSON(writer, http.StatusAccepted, &APIResponse{Artifact: struct {
+		NewHandle string
+		Duplicate bool
+	}{img.Handle, alreadyPinned}})
 }
 
 // MotionHandler handles /camera/motion
@@ -341,7 +342,8 @@ func processUpload(writer http.ResponseWriter, req *http.Request, kind MediaKind
 	err = jpeg.Encode(&buf, img, nil)
 	ise.Assert(err == nil, "error converting to JPEG (%s)", err)
 
-	handle := Repository.Store(camID, kind, buf.Bytes())
+	handle := Repository.Store(camID, buf.Bytes())
+	handle.Pin(kind)
 	res := &struct{ Handle, Timestamp string }{handle.Handle, handle.PrettyTime()}
 
 	httputil.SendJSON(writer, http.StatusAccepted, &APIResponse{Artifact: res})

@@ -268,13 +268,13 @@ const noCameras = Vue.component('noCameras', {
   template: "#no-cameras",
 });
 
-const pinMixin = {
+const saveMixin = {
   methods: {
-    pin: function(handle) {
+    save: function(handle) {
       if (this.$str(handle) == "") {
         return;
       }
-      this.callAPI(`/client/pin/${handle}`, "put", null, (artifact) => {
+      this.callAPI(`/client/save/${handle}`, "put", null, (artifact) => {
       }, this.setError);
     },
     imgURI: function(handle) {
@@ -291,7 +291,7 @@ const pinMixin = {
 
 const camera = Vue.component('camera', {
   template: "#camera",
-  mixins: [apiMixin, errorMixin, pinMixin],
+  mixins: [apiMixin, errorMixin, saveMixin],
   methods: {
     changeCamera: function(cID) {
       this.$router.push(`/camera/${cID}`);
@@ -355,7 +355,7 @@ const galleryItem = Vue.component('gallery-item', {
 
 const gallery = Vue.component('gallery', {
   template: "#gallery",
-  mixins: [apiMixin, errorMixin, pinMixin],
+  mixins: [apiMixin, errorMixin, saveMixin],
   data: function() {
     return {
       results: 0,
@@ -370,7 +370,7 @@ const gallery = Vue.component('gallery', {
       return { 
         "collected": "Recent images",
         "generated": "Timelapses",
-        "pinned": "Saved items",
+        "saved": "Saved items",
         "motion": "Motion-captured images"
       }[this.$route.params.kind];
     },

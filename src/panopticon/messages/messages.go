@@ -18,7 +18,7 @@ type Camera struct {
 	LatestDate   string
 	LatestHandle string
 	Recent       []*ImageMeta
-	Pinned       []*ImageMeta
+	Saved        []*ImageMeta
 	Timelapse    []*ImageMeta
 	Motion       []*ImageMeta
 }

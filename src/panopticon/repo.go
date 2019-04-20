@@ -22,6 +22,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -52,6 +53,7 @@ func (repo *RepositoryConfig) Ready() {
 	repo.PurgeAt(4, 0, "24h", MediaCollected)
 	repo.PurgeAt(4, 15, "24h", MediaMotion)
 	repo.PurgeAt(4, 30, repo.RetentionPeriod, MediaGenerated)
+	repo.VacuumAt(4, 45)
 
 	repo.startTimelapser(0, 0)
 }
@@ -59,8 +61,8 @@ func (repo *RepositoryConfig) Ready() {
 // Store updates the latest image for the given source (camera.) The provided image data will be
 // stored to disk, and will replace the previous in-RAM copy as latest from that source. The
 // `handle` returned can be used to refer to the image later, e.g. for lookups.
-func (repo *RepositoryConfig) Store(source string, kind MediaKind, data []byte) *Image {
-	return CreateImage(source, kind, data)
+func (repo *RepositoryConfig) Store(source string, data []byte) *Image {
+	return CreateImage(source, data)
 }
 
 // Latest retrieves the most recent image data received from the indicated source.
@@ -84,7 +86,7 @@ func (repo *RepositoryConfig) Latest(source string) *Image {
 
 // Recents returns recent photo activity. It will return up to 7 most recent
 // images (collected or motion), and up to 4 most recent of the others.
-func (repo *RepositoryConfig) Recents(camera string) (recents []*Image, pinned []*Image, generated []*Image, motion []*Image) {
+func (repo *RepositoryConfig) Recents(camera string) (recents []*Image, saved []*Image, generated []*Image, motion []*Image) {
 	TAG := "RepositoryConfig.Recents"
 
 	cam := System.GetCamera(camera)
@@ -92,33 +94,35 @@ func (repo *RepositoryConfig) Recents(camera string) (recents []*Image, pinned [
 		panic(fmt.Errorf("unknown camera '%s'", camera))
 	}
 
-	for _, img := range repo.List(camera) {
-		switch img.Kind {
-		case MediaMotion:
-			motion = append(motion, img)
-			fallthrough
-		case MediaCollected: // recents is a *mix* of collected + motion
-			recents = append(recents, img)
-		case MediaGenerated:
-			generated = append(generated, img)
-		case MediaPinned:
-			pinned = append(pinned, img)
-		default:
-			log.Warn(TAG, "unknown media kind", img.Kind)
+	for _, kind := range AllKinds {
+		for _, img := range repo.ListKind(camera, kind) {
+			switch kind {
+			case MediaMotion:
+				motion = append(motion, img)
+				fallthrough
+			case MediaCollected: // recents is a *mix* of collected + motion
+				recents = append(recents, img)
+			case MediaGenerated:
+				generated = append(generated, img)
+			case MediaSaved:
+				saved = append(saved, img)
+			default:
+				log.Warn(TAG, "unknown media kind?!", kind)
+			}
 		}
 	}
 
 	// note that these need to be sorted in descending order by date, so the comparator is backward
 	sort.Slice(recents, func(i, j int) bool { return recents[i].Timestamp.After(recents[j].Timestamp) })
-	sort.Slice(pinned, func(i, j int) bool { return pinned[i].Timestamp.After(pinned[j].Timestamp) })
+	sort.Slice(saved, func(i, j int) bool { return saved[i].Timestamp.After(saved[j].Timestamp) })
 	sort.Slice(generated, func(i, j int) bool { return generated[i].Timestamp.After(generated[j].Timestamp) })
 	sort.Slice(motion, func(i, j int) bool { return motion[i].Timestamp.After(motion[j].Timestamp) })
 
 	if len(recents) > 7 {
 		recents = recents[:7]
 	}
-	if len(pinned) > 4 {
-		pinned = pinned[:4]
+	if len(saved) > 4 {
+		saved = saved[:4]
 	}
 	if len(motion) > 4 {
 		motion = motion[:4]
@@ -155,12 +159,8 @@ func (repo *RepositoryConfig) Locate(handle string) *Image {
 					return &Image{
 						Handle:    handle,
 						Source:    camera.ID,
-						Kind:      kind,
 						Timestamp: entry.ModTime(),
 						HasVideo:  hasVideo,
-
-						stat:     entry,
-						diskPath: filepath.Join(dir, name),
 					}
 				}
 			}
@@ -198,28 +198,9 @@ func (repo *RepositoryConfig) ListKind(source string, kind MediaKind) []*Image {
 		images = append(images, &Image{
 			Handle:    s[0],
 			Source:    source,
-			Kind:      kind,
 			Timestamp: entry.ModTime(),
 			HasVideo:  hasVideo,
-
-			stat:     entry,
-			diskPath: repo.canonFile(filepath.Join(dir, entry.Name())),
 		})
-	}
-
-	return images
-}
-
-// List returns the handles of all images associated with the indicated source.
-func (repo *RepositoryConfig) List(source string) []*Image {
-	if System.GetCamera(source) == nil {
-		panic(fmt.Errorf("attempt to list unknown camera '%s'", source))
-	}
-
-	images := []*Image{}
-	for _, kind := range AllKinds {
-		cur := repo.ListKind(source, kind)
-		images = append(images, cur...)
 	}
 
 	return images
@@ -274,7 +255,7 @@ func scheduler(tag string, hour int, min int, job func()) {
 	}
 }
 
-// PurgeAt configures a job to purge the indicated kindo of image according to
+// PurgeAt configures a job to purge the indicated kind of image according to
 // the indicated retention period to run each day at the indicated time.
 func (repo *RepositoryConfig) PurgeAt(hour int, min int, retention string, kind MediaKind) {
 	dur, err := time.ParseDuration(retention) // e.g. "14d", "24h"
@@ -292,6 +273,104 @@ func (repo *RepositoryConfig) PurgeAt(hour int, min int, retention string, kind 
 
 		when := time.Now().Add(-dur)
 		repo.PurgeBefore(kind, when)
+	}
+
+	go scheduler("purger", hour, min, job)
+}
+
+// GC deletes all leaf image files that are not pinned, i.e. it garbage collects.
+func (repo *RepositoryConfig) GC() {
+	TAG := "RepositoryConfig.Vacuum"
+	allImages := make(map[string]bool)
+	for _, cam := range System.Cameras() {
+		for _, kind := range AllKinds {
+			for _, img := range repo.ListKind(cam.ID, kind) {
+				allImages[img.Handle] = true
+			}
+		}
+	}
+
+	// loop over all raw disk files
+	shaRE := regexp.MustCompile("[a-fA-F0-9]{64}")
+	for _, cam := range System.Cameras() {
+		baseDir := repo.canonDir(filepath.Join(repo.BaseDirectory, cam.ID, MediaData))
+		base, err := os.Open(baseDir)
+		if err != nil {
+			panic(err)
+		}
+		defer base.Close()
+		entries, err := base.Readdir(0)
+		if err != nil {
+			panic(err)
+		}
+		for _, entry := range entries {
+			// these are the parent directories for our SHA2-256-hashed image/video files
+			if !entry.IsDir() {
+				continue
+			}
+			if len(entry.Name()) != 3 {
+				// not one of our 3-character summary dirs
+				continue
+			}
+			subdir := repo.canonDir(filepath.Join(baseDir, entry.Name()))
+			sd, err := os.Open(subdir)
+			if err != nil {
+				panic(err)
+			}
+			defer sd.Close()
+			leaves, err := sd.Readdir(0)
+			if err != nil {
+				panic(err)
+			}
+			for _, leaf := range leaves {
+				// these should be our actual media files
+				if leaf.IsDir() {
+					continue
+				}
+				chunks := strings.Split(leaf.Name(), ".")
+				if len(chunks) != 3 {
+					// not a file we know how to deal with
+					continue
+				}
+				handle := chunks[0]
+				if !shaRE.Match([]byte(handle)) {
+					// not one of our sha256 filenames
+					log.Debug(TAG, fmt.Sprintf("skipping unrecognized file '%s'", leaf.Name()))
+					continue
+				}
+				if _, ok := allImages[handle]; ok {
+					// means it's pinned by one of the other MediaKinds
+					log.Debug(TAG, fmt.Sprintf("skipping pinned file '%s'", leaf.Name()))
+					continue
+				}
+
+				// final sanity check, and then remove it
+				fpath := filepath.Join(subdir, leaf.Name())
+				canonPath := repo.canonFile(fpath)
+				if fpath != canonPath {
+					log.Error(TAG, fmt.Sprintf("noncanonical path set '%s'/'%s'", fpath, canonPath))
+					continue
+				}
+				err := os.Remove(canonPath)
+				if err != nil {
+					panic(err)
+				}
+				log.Debug(TAG, fmt.Sprintf("removed unpinned file '%s'", canonPath))
+			}
+		}
+	}
+}
+
+// VacuumAt configures a job to vacuum/GC raw image files that are not pinned.
+func (repo *RepositoryConfig) VacuumAt(hour int, min int) {
+	job := func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Error("RepositoryConfig.Vacuum.job", "panic in vacuum job function", r)
+			}
+		}()
+
+		repo.GC()
 	}
 
 	// start a background thread that runs forever, waking up every minute to compare time
@@ -318,12 +397,9 @@ func (repo *RepositoryConfig) GenerateTimelapse(date time.Time, camera *Camera, 
 	}
 
 	var next time.Time
-	images := repo.List(camera.ID)
+	images := repo.ListKind(camera.ID, kind)
 	candidates := []*Image{}
 	for _, img := range images {
-		if img.Kind != kind {
-			continue
-		}
 		if img.Timestamp.Before(start) || end.Before(img.Timestamp) {
 			continue
 		}
@@ -339,7 +415,8 @@ func (repo *RepositoryConfig) GenerateTimelapse(date time.Time, camera *Camera, 
 			next = img.Timestamp.Add(29 * time.Second) // no more than 2 frames per minute
 		}
 		images = append(images, img)
-		names = append(names, img.diskPath)
+		dataPath := repo.dataPath(img.Source, fmt.Sprintf("%s.jpg", img.Handle))
+		names = append(names, dataPath)
 	}
 
 	// images now contains a sorted list of all files that should be in the timelapse
@@ -398,12 +475,13 @@ func (repo *RepositoryConfig) GenerateTimelapse(date time.Time, camera *Camera, 
 	still.Retrieve(&buf)
 	stillBytes := buf.Bytes()
 
-	img := repo.Store(camera.ID, MediaGenerated, stillBytes)
+	img := repo.Store(camera.ID, stillBytes)
 	if img == nil {
 		log.Warn(TAG, fmt.Sprintf("nonerror result but nil image"))
 	} else {
 		img.LinkVideo(webmBytes)
 	}
+	img.Pin(MediaGenerated)
 
 	log.Status(TAG, fmt.Sprintf("generated timelapse for '%s' from %d images", camera.ID, len(images)))
 }
@@ -439,37 +517,65 @@ func (repo *RepositoryConfig) startTimelapser(hour int, min int) {
 }
 
 /*
- * Directory Structure vs. Classifications
+ * Directory Structure
  *
- * Collected, i.e. unpinned periodic uploads: {{.BaseDirectory}}/{{.CameraID}}/collected/{{.SHA}}.jpg
- * Motion-pushed: {{.BaseDirectory}}/{{.CameraID}}/motion/{{.SHA}}.jpg
- * Pinned: {{.BaseDirectory}}/{{.CameraID}}/pinned/{{.SHA}}.{{.Extension}}
- * Generated: {{.BaseDirectory}}/{{.CameraID}}/generated/{{.SHA}}.{{.Extension}}
+ * The base media directory for a given camera is
+ * {{.BaseDirectory}}/{{.CameraID}}/{{.MediaData}} -- that is, all images
+ * received from that camera are stored in this tree.
  *
- * Collected images are purged every 24 hours.
+ * Images are content-addressed, via their SHA2-256 hashes. However to help
+ * avoid filesystem directory-entry limits, they are grouped in intermediate
+ * directories based on the first 3 characters of their hash.
  *
- * Motion images are pushed in response to camera-side motion detection. They are purged every 24 hours.
+ * So for example, a file received from `dachacam` might be stored as:
+ * /path/to/images/dachacam/data/fee/feedfacedeadbeefcafebabef00db0a71337b00bc001b0a7.jpg
  *
- * Generated media -- basically timelapses -- are constructed daily per some schedule. Only photos
- * from collected and motion sets are eligible to be used to generate images. Generated images are
- * purged after 14 days.
+ * Once so stored, these images must be pinned or they'll be reclaimed by the
+ * next GC run. An image may be pinned in one or more other media kinds.
+ * Pinning is a symlink from a kind directory to the data directory, but with
+ * no intermediate grouping directory.
  *
- * Pinned means a user flagged it for preservation. They are never purged. You can pin any of the
- * other types. A pin is a copy operation, resulting in a new image with new handle and new copy on
- * disk (though timestamps are preserved.)
+ * For instance the data file above could be marked as pinned as a
+ * MediaCollected via this creation of this file pointing to it as a symlink:
+ * /path/to/images/dachacam/collected/feedfacedeadbeefcafebabef00db0a71337b00bc001b0a7.jpg
+ *
+ * Collected images are purged every 24 hours, via the removal of the symlink.
+ *
+ * Motion images are pushed in response to camera-side motion detection. They
+ * are purged every 24 hours.
+ *
+ * Generated media -- basically timelapses -- are constructed daily per some
+ * schedule. Only photos from collected and motion sets are eligible to be used
+ * to generate images. Generated images are purged after 14 days.
+ *
+ * Saved images are images flagged by the user for permanent retention. They
+ * are, obviously, never purged.
+ *
+ * As above, any base data file not pinned via one of the other types is purged
+ * on the next GC run.
  */
 
 func (repo *RepositoryConfig) segmentToMediaKind(segment string) MediaKind {
 	kind, ok := map[string]MediaKind{
 		"collected": MediaCollected,
 		"motion":    MediaMotion,
-		"pinned":    MediaPinned,
+		"pinned":    MediaSaved,
 		"generated": MediaGenerated,
 	}[segment]
 	if !ok {
 		return MediaUnknown
 	}
 	return kind
+}
+
+func (repo *RepositoryConfig) dataPath(source, filename string) string {
+	if len(filename) < 3 {
+		panic("filename is too short")
+	}
+	prefix := filename[:3]
+	dirPath := filepath.Join(repo.BaseDirectory, source, MediaData, prefix)
+	repo.assertDir(dirPath)
+	return filepath.Join(dirPath, filename)
 }
 
 func (repo *RepositoryConfig) canonDir(dirPath string) string {

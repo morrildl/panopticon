@@ -207,7 +207,7 @@ sententio.us"></textarea>
                       <h2 v-if="$store.state.CurrentCamera.LatestTime == ''">No images found</h2>
                     </div>
                     <div class="column is-gapless is-4 has-text-right">
-                      <a class="button is-info is-small" @click="pin($store.state.CurrentCamera.LatestHandle)">
+                      <a class="button is-info is-small" @click="save($store.state.CurrentCamera.LatestHandle)">
                         <b-icon icon="pin" size="is-small"></b-icon>
                         <span>Save</span>
                       </a>
@@ -241,25 +241,25 @@ sententio.us"></textarea>
 
           <div class="tile is-parent is-vertical is-3">
 
-            <!-- pinned block tile -->
+            <!-- saved block tile -->
             <div class="tile is-child box">
-              <h2><a :href="`/gallery/${$store.state.CurrentCamera.ID}/pinned`">Saved</a></h2>
+              <h2><a :href="`/gallery/${$store.state.CurrentCamera.ID}/saved`">Saved</a></h2>
               <div class="columns is-gapless is-multiline">
                 <div class="column is-gapless is-half">
-                  <thumbnail :img="fetchImg('Pinned', 0)"></thumbnail>
+                  <thumbnail :img="fetchImg('Saved', 0)"></thumbnail>
                 </div>
                 <div class="column is-gapless is-half">
-                  <thumbnail :img="fetchImg('Pinned', 1)"></thumbnail>
+                  <thumbnail :img="fetchImg('Saved', 1)"></thumbnail>
                 </div>
                 <div class="column is-gapless is-half">
-                  <thumbnail :img="fetchImg('Pinned', 2)"></thumbnail>
+                  <thumbnail :img="fetchImg('Saved', 2)"></thumbnail>
                 </div>
                 <div class="column is-gapless is-half">
-                  <thumbnail :img="fetchImg('Pinned', 3)"></thumbnail>
+                  <thumbnail :img="fetchImg('Saved', 3)"></thumbnail>
                 </div>
               </div>
             </div>
-            <!-- end pinned block tile -->
+            <!-- end saved block tile -->
 
             <!-- generated block tile -->
             <div class="tile is-child box">
@@ -346,7 +346,7 @@ sententio.us"></textarea>
         <div class="columns is-multiline">
           <div class="column is-12" v-if="imageList.length < 1">No {{ kind }} for {{ camera }}</div>
           <div class="column is-4" v-for="img in imageList">
-            <gallery-item :img="img" :onsave="pin" :caption="`${img.Time} • ${img.Date}`" :nosave="$route.params.kind == 'pinned'"></gallery-item>
+            <gallery-item :img="img" :onsave="save" :caption="`${img.Time} • ${img.Date}`" :nosave="$route.params.kind == 'saved'"></gallery-item>
           </div>
         </div>
       </div>

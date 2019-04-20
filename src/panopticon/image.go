@@ -37,46 +37,39 @@ type Image struct {
 	Handle    string
 	Source    string
 	Timestamp time.Time
-	Kind      MediaKind
 	HasVideo  bool
-
-	diskPath string
-	stat     os.FileInfo
 }
 
 // CreateImage stores the bytes to the disk according to config & convention, and returns a handle to the
 // resulting image.
-func CreateImage(source string, kind MediaKind, b []byte) *Image {
+func CreateImage(source string, b []byte) *Image {
 	cam := System.GetCamera(source)
-	if cam.Dewarp && (kind == MediaCollected || kind == MediaMotion) {
+	if cam.Dewarp {
 		b = dewarpFisheye(b)
 	}
 
-	dir := Repository.dirFor(source, kind)
-
-	// compute a hash of the file based on its contents, disk location, and current time
-	timestamp := time.Now()
-	tb, err := timestamp.MarshalBinary()
+	// image's stable ID is its hash
 	potato := sha256.New()
 	potato.Write(b)
-	potato.Write(tb)
-	potato.Write([]byte(dir))
 	handle := hex.EncodeToString(potato.Sum(nil)[:32])
 
 	// verify that the file doesn't somehow already exist
-	diskPath := Repository.canonFile(filepath.Join(dir, fmt.Sprintf("%s.%s", handle, "jpg")))
-	_, err = os.Stat(diskPath)
+	diskPath := Repository.dataPath(source, fmt.Sprintf("%s.%s", handle, "jpg"))
+	fi, err := os.Stat(diskPath)
 	if err != nil {
 		if !os.IsNotExist(err) {
-			log.Error("Image.CreateImage", "file hash collision?! '%s'", handle)
+			panic(err)
+		}
+	}
+	if fi != nil {
+		log.Error("Image.CreateImage", "file hash collision?! '%s'", handle)
+	} else {
+		// write the actual file contents under its computed name
+		if err := ioutil.WriteFile(diskPath, b, 0660); err != nil {
 			panic(err)
 		}
 	}
 
-	// write the actual file contents under its computed name
-	if err := ioutil.WriteFile(diskPath, b, 0660); err != nil {
-		panic(err)
-	}
 	stat, err := os.Stat(diskPath)
 	if err != nil {
 		panic(err)
@@ -85,24 +78,111 @@ func CreateImage(source string, kind MediaKind, b []byte) *Image {
 	return &Image{
 		Handle:    handle,
 		Source:    source,
-		Kind:      kind,
-		Timestamp: timestamp,
+		Timestamp: stat.ModTime(),
 		HasVideo:  false,
-		stat:      stat,
-		diskPath:  diskPath,
 	}
+}
+
+// LinkVideo associates video bytes with the image, which is understood to be a
+// still frame from the video, suitable for use as a thumbnail or cover still
+// for the video. Errors if the image is not a video type (i.e. generated/timelapse.)
+func (img *Image) LinkVideo(content []byte) {
+	basename := fmt.Sprintf("%s.%s", img.Handle, "webm")
+	dataPath := Repository.dataPath(img.Source, basename)
+	if fi, err := os.Stat(dataPath); err != nil {
+		if !os.IsNotExist(err) {
+			panic(err)
+		}
+	} else {
+		if fi != nil {
+			log.Error("Image.LinkVideo", "image '%s' already has video", img.Handle)
+		}
+	}
+	if err := ioutil.WriteFile(dataPath, content, 0660); err != nil {
+		panic(err)
+	}
+}
+
+// Pin sets the Image to be pinned. `kind` must be one of the `Media*` enum constants. This is a
+// link operation, not a copy or move. As most Kinds are subject to periodic purging, it is not
+// necessary to unpin them; actual bytes are kept around as long as the image is
+// pinned as at least one Kind.
+//
+// Images are expected to be created and media (if any) linked, before pinning.
+// Pinning before linking video will result in the video media not being pinned
+// or retained (but the image will be.)
+//
+// Returns true if the item was pinned, or false if it was already pinned.
+func (img *Image) Pin(kind MediaKind) bool {
+	basename := fmt.Sprintf("%s.%s", img.Handle, "jpg")
+	dataPath := Repository.dataPath(img.Source, basename)
+	if dataPath == "" {
+		panic(fmt.Errorf("missing dataPath for image '%s'", img.Handle))
+	}
+
+	// extract file name, kind, and camera/source using our convention
+	chunks := strings.Split(dataPath, string(os.PathSeparator))
+	if len(chunks) < 4 {
+		panic(fmt.Errorf("impossible disk path '%s'", dataPath))
+	}
+	file := chunks[len(chunks)-1]
+	prefix := chunks[len(chunks)-2]
+	diskKind := chunks[len(chunks)-3]
+	camera := chunks[len(chunks)-4]
+	if file == "" || prefix == "" || diskKind != MediaData || camera == "" || camera != img.Source {
+		panic(fmt.Errorf("missing file/kind/camera '%s'/'%s'/'%s'", file, kind, camera))
+	}
+
+	// compute the new disk location; start with directory
+	destDir := Repository.dirFor(camera, kind)
+
+	// use the same extension (so that a .jpg remains a .jpg etc.)
+	chunks = strings.SplitN(file, ".", 2)
+	if len(chunks) != 2 {
+		panic(fmt.Errorf("unable to decompose filename '%s'", file))
+	}
+
+	// now we can construct the fully qualified destination filename, and link it
+	destFile := Repository.canonFile(filepath.Join(destDir, fmt.Sprintf("%s.%s", img.Handle, chunks[1])))
+	fi, err := os.Stat(destFile)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			panic(err)
+		}
+	}
+	if fi == nil {
+		if err := os.Symlink(dataPath, destFile); err != nil {
+			panic(err)
+		}
+	} else {
+		log.Debug("Image.Pin", "double pin of '%s' to '%s'", img.Handle, kind)
+		return false
+	}
+
+	// also link the video adjunct, if there is one
+	basename = fmt.Sprintf("%s.%s", img.Handle, "webm")
+	dataPath = Repository.dataPath(img.Source, basename)
+	fi, err = os.Stat(dataPath)
+	if err != nil && !os.IsNotExist(err) {
+		panic(err)
+	}
+	if !os.IsNotExist(err) && fi != nil {
+
+	}
+	destFile = Repository.canonFile(filepath.Join(destDir, basename))
+	if err := os.Symlink(dataPath, destFile); err != nil {
+		panic(err)
+	}
+	return true
 }
 
 // Retrieve fetches the bytes for this image and stores them in the provided buffer.
 func (img *Image) Retrieve(buf *bytes.Buffer) {
-	if img.diskPath == "" {
+	diskPath := Repository.dataPath(img.Source, fmt.Sprintf("%s.%s", img.Handle, "jpg"))
+	if diskPath == "" {
 		panic(fmt.Errorf("missing diskPath for image '%s'", img.Handle))
 	}
-	diskPath := Repository.canonFile(img.diskPath)
-	if diskPath != img.diskPath {
-		panic(fmt.Errorf("image diskPath does not resolve to itself '%s'/'%s'", diskPath, img.diskPath))
-	}
-	b, err := ioutil.ReadFile(img.diskPath)
+	b, err := ioutil.ReadFile(diskPath)
 	if err != nil {
 		panic(err)
 	}
@@ -112,159 +192,12 @@ func (img *Image) Retrieve(buf *bytes.Buffer) {
 	}
 }
 
-// Erase removes the indicated image from disk.
-func (img *Image) Erase() {
-	if img.diskPath == "" {
-		panic(fmt.Errorf("missing diskPath for image '%s'", img.Handle))
-	}
-	diskPath := Repository.canonFile(img.diskPath)
-	if diskPath != img.diskPath {
-		panic(fmt.Errorf("image diskPath does not resolve to itself '%s'/'%s'", diskPath, img.diskPath))
-	}
-	if err := os.Remove(img.diskPath); err != nil {
-		if !os.IsNotExist(err) { // ignore if we were just asked to remove a thing which isn't there
-			panic(err)
-		}
-	}
-}
-
-// Pin sets the Image to be pinned. `reason` must be one of the `Pin*` enum constants. This is a
-// *copy* operation, not a move. As the non-pinned Kinds are subject to periodic purging, it is not
-// necessary to delete them. Meanwhile, doing so can result in missing inputs into generated images,
-// as the generation behaviors generally do not consider pinned content for inclusion.
-//
-// The returned `*Image` is for the new pinned copy. Its `Handle` will have changed.
-func (img *Image) Pin() *Image {
-	// basic sanity checks
-	if img.diskPath == "" {
-		panic(fmt.Errorf("missing diskPath for image '%s'", img.Handle))
-	}
-	diskPath := Repository.canonFile(img.diskPath)
-	if diskPath != img.diskPath {
-		panic(fmt.Errorf("image diskPath does not resolve to itself '%s'/'%s'", diskPath, img.diskPath))
-	}
-
-	// extract file name, kind, and camera/source using our convention
-	chunks := strings.Split(diskPath, string(os.PathSeparator))
-	if len(chunks) < 4 {
-		panic(fmt.Errorf("impossible disk path '%s'", diskPath))
-	}
-	file := chunks[len(chunks)-1]
-	kind := chunks[len(chunks)-2]
-	camera := chunks[len(chunks)-3]
-	if file == "" || kind == "" || camera == "" {
-		panic(fmt.Errorf("missing file/kind/camera '%s'/'%s'/'%s'", file, kind, camera))
-	}
-
-	// more sanity checks to make sure decomposition of path didn't go awry
-	if Repository.segmentToMediaKind(kind) != img.Kind {
-		panic(fmt.Errorf("diskPath (%s) does not resolve kind '%s'/'%s'", diskPath, kind, img.Kind))
-	}
-	if camera != img.Source { // sanity check
-		panic(fmt.Errorf("camera does not resolve '%s'/'%s'", camera, img.Source))
-	}
-
-	// read the file contents
-	b, err := ioutil.ReadFile(img.diskPath)
-	if err != nil {
-		panic(err)
-	}
-
-	// compute the new disk location; start with directory
-	destDir := Repository.dirFor(camera, MediaPinned)
-
-	// compute new handle, which is the SHA256 hash of file contents + current time + parent directory
-	timestamp := time.Now()
-	tb, err := timestamp.MarshalBinary()
-	potato := sha256.New()
-	potato.Write(b)
-	potato.Write(tb)
-	potato.Write([]byte(destDir))
-	newHandle := hex.EncodeToString(potato.Sum(nil)[:32])
-
-	// use the same extension (so that a .jpg remains a .jpg etc.)
-	chunks = strings.SplitN(file, ".", 2)
-	if len(chunks) != 2 {
-		panic(fmt.Errorf("unable to decompose filename '%s'", file))
-	}
-
-	// now we can construct the fully qualified destination filename
-	destFile := Repository.canonFile(filepath.Join(destDir, fmt.Sprintf("%s.%s", newHandle, chunks[1])))
-
-	// write it, and make sure we carry over the timestamp to the new copy
-	err = ioutil.WriteFile(destFile, b, 0660)
-	if err != nil {
-		panic(err)
-	}
-	if err := os.Chtimes(destFile, img.Timestamp, img.Timestamp); err != nil {
-		panic(err)
-	}
-
-	// sanity check to make sure it's there
-	newStat, err := os.Stat(destFile)
-	if err != nil {
-		panic(err)
-	}
-
-	hasVideo := false
-	// also copy the adjuct, if there is one
-	if img.Kind == MediaGenerated {
-		adjunct := Repository.canonFile(filepath.Join(Repository.dirFor(camera, img.Kind), fmt.Sprintf("%s.webm", img.Handle)))
-		_, err := os.Stat(adjunct)
-		if err != nil {
-			if os.IsNotExist(err) {
-				panic(fmt.Errorf("generated image '%s' is missing adjunct at '%s' (%s)", img.Handle, adjunct, err))
-			}
-			panic(err)
-		}
-		hasVideo = true
-
-		b, err := ioutil.ReadFile(adjunct)
-
-		destFile := Repository.canonFile(filepath.Join(destDir, fmt.Sprintf("%s.webm", newHandle)))
-		if err := ioutil.WriteFile(destFile, b, 0660); err != nil {
-			panic(err)
-		}
-	}
-
-	// return a handle to the new image
-	return &Image{
-		Handle:    newHandle,
-		Source:    camera,
-		Kind:      MediaPinned,
-		Timestamp: img.Timestamp,
-		HasVideo:  hasVideo,
-		stat:      newStat,
-		diskPath:  destFile,
-	}
-}
-
-// LinkVideo associates video bytes with the image, which is understood to be a
-// still frame from the video, suitable for use as a thumbnail or cover still
-// for the video. Errors if the image is not a video type (i.e. generated/timelapse.)
-func (img *Image) LinkVideo(content []byte) {
-	if img.Kind != MediaGenerated {
-		panic(fmt.Errorf("unable to associate video data with %s for '%s'", img.Kind, img.Handle))
-	}
-	fname := strings.Join([]string{img.Handle, "webm"}, ".")
-	fname = Repository.canonFile(filepath.Join(Repository.dirFor(img.Source, img.Kind), fname))
-	if _, err := os.Stat(fname); err != nil {
-		if !os.IsNotExist(err) {
-			log.Error("Image.LinkVideo", "image '%s' already has video", img.Handle)
-			panic(err)
-		}
-	}
-	if err := ioutil.WriteFile(fname, content, 0660); err != nil {
-		panic(err)
-	}
-}
-
 // RetrieveVideo fetches the bytes of the video for which the image is a still.
 // Besides the usual errors, this will also error if the image is not a
 // video-carrying Kind.
 func (img *Image) RetrieveVideo(buf *bytes.Buffer) {
 	fname := strings.Join([]string{img.Handle, "webm"}, ".")
-	fname = Repository.canonFile(filepath.Join(Repository.dirFor(img.Source, img.Kind), fname))
+	fname = Repository.dataPath(img.Source, fname)
 	if b, err := ioutil.ReadFile(fname); err != nil {
 		panic(err)
 	} else {
